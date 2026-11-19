@@ -124,6 +124,14 @@ const topUnknownOperators = computed(() => graphics.value?.unknownOperators?.sli
 
 const graphicsDiagnostics = computed(() => graphics.value?.diagnostics?.slice(0, 12) ?? [])
 
+const gradientFillCount = computed(
+  () => (graphics.value?.vectors ?? []).filter((vector) => vector.fill?.type === 'gradient').length,
+)
+
+const customFillCount = computed(
+  () => (graphics.value?.vectors ?? []).filter((vector) => vector.fill?.type === 'custom').length,
+)
+
 const graphicsHasWarning = computed(() => {
   if (!graphics.value) return false
   return (
@@ -273,6 +281,12 @@ function paintLabel(paint) {
   if (!paint || paint.type === 'none') return '无'
   if (paint.type === 'named') return paint.name
   if (paint.type === 'unknown') return '未知'
+  if (paint.type === 'gradient') return `渐变（${paint.name ?? '未命名'}）`
+  if (paint.type === 'custom') {
+    const values = (paint.values ?? []).slice(0, 4).map((value) => Math.round(value * 1000) / 1000)
+    const suffix = (paint.values ?? []).length > 4 ? '…' : ''
+    return `custom(${values.join(', ')}${suffix})`
+  }
   const values = (paint.values ?? []).map((value) => {
     const rounded = Math.round(value * 1000) / 1000
     return String(rounded)
@@ -437,7 +451,8 @@ onBeforeUnmount(() => {
                 矢量 {{ report.graphics.vectorCount }}
               </span>
               <span v-if="report.graphics?.artboards?.length" class="chip">
-                Artboard {{ report.graphics.artboards.length }}（推断）
+                {{ report.graphics.artboardSource === 'native-artboard' ? '原生画板' : 'Artboard' }}
+                {{ report.graphics.artboards.length }}
               </span>
             </div>
           </div>
@@ -490,6 +505,17 @@ onBeforeUnmount(() => {
               <div>
                 <dt>Creator 标识</dt>
                 <dd>{{ report.detection.creatorLabel ?? '—' }}</dd>
+              </div>
+              <div>
+                <dt>应用版本</dt>
+                <dd class="mono">{{ report.detection.applicationVersion ?? '—' }}</dd>
+              </div>
+              <div>
+                <dt>声明图层 / 画板</dt>
+                <dd>
+                  {{ report.detection.declaredLayerCount ?? '—' }} /
+                  {{ report.detection.declaredArtboardCount ?? '—' }}
+                </dd>
               </div>
               <div>
                 <dt>AI 私有格式</dt>
@@ -598,6 +624,13 @@ onBeforeUnmount(() => {
               <dt>尾部额外数据</dt>
               <dd>{{ report.privateData.trailingData ? '是' : '否' }}</dd>
             </div>
+            <div v-if="report.privateData.chunkCount">
+              <dt>PDF 分块</dt>
+              <dd class="mono">
+                {{ report.privateData.chunksUsed }} / {{ report.privateData.chunkCount }} · 对象
+                {{ report.privateData.streamObject }}
+              </dd>
+            </div>
           </dl>
 
           <div v-if="report.privateData.decodedMarkers?.length" class="decoded-markers">
@@ -681,6 +714,8 @@ onBeforeUnmount(() => {
                 <span v-for="item in vectorTypeSummary" :key="item.type" class="tag">
                   {{ item.label }} ×{{ item.count }}
                 </span>
+                <span v-if="gradientFillCount" class="tag tag-muted">渐变填充 ×{{ gradientFillCount }}</span>
+                <span v-if="customFillCount" class="tag tag-muted">专色/自定义 ×{{ customFillCount }}</span>
                 <span v-if="!vectorTypeSummary.length" class="muted small">没有矢量对象</span>
               </div>
             </div>
@@ -702,7 +737,13 @@ onBeforeUnmount(() => {
           <div class="divider"></div>
           <div class="mini-head">
             <h3 class="subsection-title">画板候选</h3>
-            <span class="muted small">来自 BoundingBox / MediaBox，非原生画板数据</span>
+            <span class="muted small">
+              {{
+                graphics.artboardSource === 'native-artboard'
+                  ? '来自 AI DocumentData 原生画板'
+                  : '来自 BoundingBox / MediaBox，非原生画板'
+              }}
+            </span>
           </div>
           <div v-if="graphics.artboards?.length" class="artboard-list">
             <article v-for="artboard in graphics.artboards" :key="artboard.id" class="artboard-card">
@@ -715,6 +756,13 @@ onBeforeUnmount(() => {
             </article>
           </div>
           <p v-else class="muted small">未找到画板边界提示。</p>
+
+          <div v-if="graphics.contentBounds?.length" class="content-bounds">
+            <span class="label">内容边界</span>
+            <span v-for="(bounds, index) in graphics.contentBounds" :key="`${bounds.kind}-${index}`" class="tag mono">
+              {{ bounds.kind }} · {{ formatRect(bounds.rect) }}
+            </span>
+          </div>
 
           <div class="divider"></div>
           <div class="mini-head">
@@ -739,7 +787,11 @@ onBeforeUnmount(() => {
               <tbody>
                 <tr v-for="vector in previewVectors" :key="vector.id">
                   <td class="mono">{{ vector.id }}</td>
-                  <td>{{ vectorTypeLabel(vector.type) }}</td>
+                  <td>
+                    {{ vectorTypeLabel(vector.type) }}
+                    <span v-if="vector.compound" class="mini-flag">复合</span>
+                    <span v-if="vector.nonPrinting" class="mini-flag">非打印</span>
+                  </td>
                   <td class="mono">{{ paintLabel(vector.fill) }}</td>
                   <td class="mono">
                     {{ paintLabel(vector.stroke)
@@ -2003,6 +2055,26 @@ h1 span {
 
 .artboard-head strong {
   font-size: 12.5px;
+}
+
+.content-bounds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.mini-flag {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: 9.5px;
+  line-height: 1.6;
+  vertical-align: 1px;
 }
 
 .diagnostic-list.compact li {

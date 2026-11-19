@@ -99,8 +99,10 @@ export function buildCompatibilityReport(report) {
       '画板信息',
       graphics.artboards?.length ? SupportLevel.PARTIAL : SupportLevel.UNSUPPORTED,
       graphics.artboards?.length
-        ? `找到 ${graphics.artboards.length} 个画板候选，来源为页面边界推断，非 Illustrator 原生画板数据`
-        : '未找到 BoundingBox / MediaBox 等边界提示',
+        ? graphics.artboardSource === 'native-artboard'
+          ? `从 AI DocumentData 解析到 ${graphics.artboards.length} 个原生画板（待更多版本样本验证）`
+          : `找到 ${graphics.artboards.length} 个画板候选，来源为页面边界推断，非 Illustrator 原生画板数据`
+        : '未找到原生画板数据或 BoundingBox / MediaBox 等边界提示',
     ),
     item(
       'PGF 原生图层语义',
@@ -129,7 +131,7 @@ export function buildCompatibilityReport(report) {
     overallLabel: LEVEL_LABELS[overall],
     note:
       overall === SupportLevel.PARTIAL
-        ? '阶段 2 已实现结构检测与基础矢量提取，但尚未实现 Scene Graph / Canvas 渲染，且缺少真实 AI 样本验证。'
+        ? '阶段 2 已用 1 个真实 AI24 样本校准私有数据解压、基础路径与原生画板；仍未实现 Scene Graph / Canvas 渲染，且需要更多版本样本。'
         : '当前文件未通过阶段 2 解析，详情见诊断信息。',
     items,
   }

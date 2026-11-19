@@ -25,10 +25,15 @@
 │ AIFileDetector             │
 │ 容器 / 版本 / 私有数据 / 边界 │
 └───────────────┬────────────┘
+                │ AI24：分块 zstd 解压
+┌───────────────▼────────────┐
+│ AI24Extractor + fzstd      │
+│ PDF stream 拼接 / 解压       │
+└───────────────┬────────────┘
                 │ 已解码文本
 ┌───────────────▼────────────┐   ┌─────────────────────────┐
 │ PostScriptLexer            │──▶│ PostScriptParser        │
-│ token 化（无执行）           │   │ 白名单操作符 + 状态栈     │
+│ token 化（无执行）           │   │ 白名单 + AI 私有操作符    │
 └────────────────────────────┘   └───────────┬─────────────┘
                                              │ 路径 + 颜色 + CTM
                                  ┌───────────▼─────────────┐
@@ -36,7 +41,12 @@
                                  │ 分类 / 规范化 / 包围盒    │
                                  └─────────────────────────┘
 
-阶段 3+：VectorParser → Scene Graph → CanvasRenderer
+┌────────────────────────────┐
+│ AIArtboardExtractor        │
+│ DocumentData → 原生画板      │
+└────────────────────────────┘
+
+阶段 3+：VectorParser + 画板 → Scene Graph → CanvasRenderer
 ```
 
 ## 2. 模块职责
@@ -47,7 +57,9 @@
 | `BinaryParser` | 字节/整数/浮点读取、BMH 搜索、ASCII85、zlib | AI 语法 |
 | `AIFileDetector` | 容器识别、版本标记、私有数据定位/解码、诊断、页面边界提示 | 图形提取 |
 | `PostScriptLexer` | token 化数字/名字/字符串/数组/字典/过程/注释 | 执行、绘图 |
-| `PostScriptParser` | 白名单操作符、路径构建、图形状态、颜色、变换、诊断 | Canvas、Scene Graph |
+| `PostScriptParser` | 白名单操作符、AI 私有操作符、路径构建、图形状态、颜色、变换、诊断 | Canvas、Scene Graph |
+| `AI24Extractor` | PDF stream 分块定位/拼接、zstd 前缀解压 | PDF 页面内容 |
+| `AIArtboardExtractor` | DocumentData ArtboardArray → 原生画板 | 内容边界 |
 | `PostScriptGraphicsState` | CTM、填充/描边颜色、线宽、端点、连接、虚线 | 视口变换 |
 | `VectorParser` | 矩形/线段/路径分类、颜色规范化、包围盒 | 栅格化、分组关系 |
 | `PageBoxExtractor` | BoundingBox / MediaBox / CropBox 提示与画板候选 | 原生 Artboard 语义 |
@@ -91,6 +103,8 @@ const result = await engine.parse(fileOrBuffer, {
         boundsApproximate, rect?, support: 'PARTIAL'
       }],
       artboards: [{ rect, source, confidence, note }],
+      artboardSource: 'native-artboard' | 'page-box-hints' | 'none',
+      contentBounds: [{ kind, rect, note }],
       unknownOperators: [{ operator, count, firstOffset, firstLine }],
       unsupportedFeatures, diagnostics, stats, truncated
     },
@@ -136,20 +150,21 @@ const result = await engine.parse(fileOrBuffer, {
 
 ## 6. 阶段 2 的已知限制
 
-1. 未用真实 AI 私有数据校准操作符集合与参数顺序。
-2. AI 私有数据中的图层、分组、画板命名、对象关系尚未还原。
-3. 裁剪路径只记录，不参与后续图形裁剪。
-4. 文字、图片、图案、渐变、透明度组未解析。
-5. 三次曲线包围盒基于控制点，属于近似值。
-6. 变换以绘制时 CTM 快照保存，尚未恢复分组层级。
-7. 大文件解析仍在主线程（阶段 6 移入 Worker）。
+1. 仅有 1 个真实 AI24 样本；其他版本的操作符集合与布局尚未校准。
+2. AI 私有数据不是严格 PostScript：prolog 存在不闭合数组，因此从 `%AI5_BeginLayer` 开始解析。
+3. 渐变只标记为 `gradient`，颜色表与停靠点未解析；渲染阶段不能使用黑色替代。
+4. `Xa` / `XA` 保留原始 7 个分量，颜色空间尚未确认。
+5. 文字、图片、图案、裁剪、透明度组未解析。
+6. 图层/组/复合路径只记录计数与深度，尚未恢复对象关系。
+7. 三次曲线包围盒基于控制点，属于近似值。
+8. AI24 zstd 使用 fzstd（JS），大文件仍在主线程解压（阶段 5/6 优化）。
 
 ## 7. 阶段 3 计划
 
 1. 建立 `Document / Artboard / Group / Shape / Path / Transform / Fill / Stroke` 数据模型。
 2. 将阶段 2 的扁平矢量对象组织为层级 Scene Graph。
-3. 从真实样本中还原图层与分组关系。
-4. 补充复合路径、clip、渐变、透明度的数据结构（即使暂不渲染也要明确标记）。
+3. 把 `u/U`、`*u/*U`、`Lb/Ln/LB` 转换为组、复合路径与图层。
+4. 为渐变、裁剪、文字、图片建立明确的数据结构（即使暂不渲染也要标记）。
 5. 为阶段 4 提供稳定的渲染输入契约。
 
 **进入阶段 4 的前提**：至少一个真实 AI 样本可以输出结构稳定的 Scene Graph，并有测试证据。

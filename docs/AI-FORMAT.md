@@ -106,6 +106,80 @@ EPS 私有数据段通常为按行 `%` 前缀的 ASCII85 数据，可能再包�
 
 若私有数据既不是 zlib / zstd / ASCII85，阶段 1 将其作为原始 Latin-1 文本处理，并保留预览与诊断。未知压缩方式不会被静默忽略。
 
+### 4.5 AI24 真实样本结构（2026-11-19 校准）
+
+真实样本：Illustrator 29.3 导出的 `lengdong-logo.ai`（PDF 1.6，569 KB，AI24 格式）。
+
+**容器布局**
+
+- PDF 私有数据不是单帧 zstd，而是拆成连续的 PDF stream 对象（本样本为对象 11–18）。
+- 仅对象 11 的 stream 以 `%AI24_ZStandard_Data` 开头；对象 12–18 是纯 zstd 续块，每块 64 KiB（最后一块可更短）。
+- 拼接 8 个 stream 块后，去掉 `%AI24_ZStandard_Data` 标记，再交给 zstd 解码。
+- 解码结果：8,124,703 字节 PostScript 风格文本。
+- 本样本实际 stream 数据总长 489,879 字节；按对象顺序截取，不能简单“从标记读到文件末尾”，因为文件尾部还有 PDF xref / trailer。
+
+**二进制数据块**
+
+文本中间包含：
+```
+%%BeginData: 4738564
+<约 6.3 MB 二进制数据>
+%%EndData
+```
+`%%BeginData` 声明值（4,738,564）**不是**实际编码块的字节长度；本样本实际块为 6,318,105 字节。因此实现按 `%%EndData` 边界跳过，而不是按声明长度跳转。该块与 `%AI5_BeginRaster` / `Xh` / `XH` 相关联，是嵌入栅格图，阶段 2 不解码。
+
+**绘图段**
+
+- 私有数据的 prolog / 渐变定义中包含大量**不闭合的 `[` 数组**，它们不是标准 PostScript 数组，不能按标准数组收集到文件末尾。
+- 实际绘图内容从 `%AI5_BeginLayer` 开始；从该标记解析可避免 prolog 数组污染操作数栈。
+- 本样本：65,114 tokens、12,496 个白名单操作符、841 个矢量对象、0 个未知操作符。
+
+**观察到的 AI 操作符（本样本）**
+
+| 操作符 | 参数 | 语义 / 处理 |
+|---|---|---|
+| `m` / `l` / `L` | 2 | moveto / lineto（smooth / corner） |
+| `c` / `C` | 6 | curveto（smooth / corner） |
+| `v` / `V` / `y` / `Y` | 4 | 曲线变体 |
+| `h` / `H` | 0 | closepath |
+| `f` / `F` / `b` / `B` / `S` | 0 | 绘制 |
+| `Xa` / `XA` | **7** | 自定义/专色填充与描边；本样本为 7 个分量，具体颜色空间待确认 |
+| `Xw` | 1 | 填充规则（0 → nonzero） |
+| `As` / `Ae` / `AE` / `A` / `Ap` | 1 | 外观 / 透明度属性，暂不渲染 |
+| `Lb` / `Ln` / `LB` | 14 / 1 / 0 | 图层头 / 图层名 / 图层结束 |
+| `u` / `U` / `*u` / `*U` | 0 | 组 / 复合路径 |
+| `Bb` / `BB` | 0 | 渐变填充开始 / 结束 |
+| `Bg` | 名称 + 多个数字 | 渐变几何定义；实现中清理操作数栈 |
+| `Xm` / `Bc` / `Bm` | 6 | 渐变变换矩阵 |
+| `Xh` / `XH` / `XI` | 数组 + 数字 | 栅格图，阶段 2 跳过 |
+| `O` / `R` | 1 | 叠印设置 |
+| `D` / `XR` / `XW` | 1 / 1 / 2 | AI 虚线或画笔样式索引 |
+
+> 操作符参数数量与语义参考公开项目 illustrator-rs 的操作符表，并在真实样本上验证；未复制其源码。
+
+**原生画板**
+
+DocumentData 中包含：
+
+```
+(画板 1) /UnicodeString (Name) ,
+1250 -700 /RealPointRelToROrigin
+(PositionPoint2) ,
+0 0 /RealPointRelToROrigin
+(PositionPoint1) ,
+... (ArtboardArray) ,
+```
+
+据此得到画板矩形：`x=0, y=-700, width=1250, height=700`，与 PDF MediaBox 一致；BoundingBox（`-462 -680 1425 345`）是内容范围，不是画板。名称与坐标以 UTF-8 字节存放，需按 UTF-8 重新解码。
+
+**仍未确认**
+
+- 渐变颜色表 / 渐变停靠点的完整结构（本样本的渐变定义位于 prolog，含不闭合数组）。
+- `Xa` 7 个分量分别代表什么颜色空间或专色分量。
+- 文本、嵌入图片、画笔/图案的实际渲染语义。
+- 其他 Illustrator 版本（AI 8 / 10 / CS6 / 2022+）的私有数据布局差异。
+
+
 ---
 
 ## 5. 关于 “PGF” 的术语澄清
@@ -162,6 +236,7 @@ EPS 私有数据段通常为按行 `%` 前缀的 ASCII85 数据，可能再包�
 | [Pilser/illustrator-rs](https://github.com/Pilser/illustrator-rs) | MIT | 容器识别、私有数据标记、zlib / ASCII85 提取思路 | 阅读架构与格式线索，未复制源码 |
 | [opendesigndev/illustrator-parser-pdfcpu](https://github.com/opendesigndev/illustrator-parser-pdfcpu) | Apache-2.0 | AI 数据提取、WASM/Worker 组织 | 仅参考架构；不引入 pdfcpu |
 | [flyfish-dev/file-viewer](https://github.com/flyfish-dev/file-viewer) | Apache-2.0 | 兼容性诊断、多格式模块边界 | 仅参考设计；未复制源码 |
+| [fzstd](https://www.npmjs.com/package/fzstd) | MIT | Zstandard 解压 | 运行依赖；只做解压，不含 AI 解析 |
 | Adobe AI 兼容性指南 | Adobe 文档 | 版本、容器关系 | 公开资料研究 |
 
 > 本项目不复制上述项目的代码。若后续需要复用，必须先完成许可证与依赖审计，并在 NOTICE 中注明。

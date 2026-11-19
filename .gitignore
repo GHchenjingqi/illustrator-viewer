@@ -6,3 +6,9 @@ coverage/
 *.log
 .DS_Store
 Thumbs.db
+
+# 真实 Illustrator 样本可能包含商业素材，默认不提交
+tests/fixtures/real/*.ai
+tests/fixtures/real/*.report.json
+tests/fixtures/real/*.inspect.log
+tests/fixtures/real/*.txt

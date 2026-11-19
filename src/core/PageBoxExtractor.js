@@ -67,14 +67,23 @@ export function extractPageBoxes(text, options = {}) {
 
 /**
  * 将边界提示转换为画板候选。
+ * PDF 优先 MediaBox / CropBox；EPS / PostScript 优先 BoundingBox。
  * @param {Array<{ kind: string, values: number[], offset?: number }>} hints
+ * @param {{ container?: string }} [options]
  */
-export function pageBoxesToArtboards(hints) {
+export function pageBoxesToArtboards(hints, options = {}) {
   if (!Array.isArray(hints)) return []
   const artboards = []
   const seen = new Set()
 
-  for (const hint of hints.slice(0, 24)) {
+  const preferred =
+    options.container === 'pdf'
+      ? ['media-box', 'crop-box']
+      : ['bounding-box', 'hi-res-bounding-box', 'page-bounding-box']
+  const primary = hints.filter((hint) => preferred.includes(hint.kind))
+  const candidates = primary.length > 0 ? primary : hints
+
+  for (const hint of candidates.slice(0, 24)) {
     const [x1, y1, x2, y2] = hint.values ?? []
     if (![x1, y1, x2, y2].every(Number.isFinite)) continue
 
@@ -105,4 +114,35 @@ export function pageBoxesToArtboards(hints) {
   }
 
   return artboards
+}
+
+/**
+ * 页面内容边界（BoundingBox / HiResBoundingBox），用于提示图形实际范围。
+ * 它不是画板，不能替代 ArtboardArray。
+ */
+export function pageBoxesToContentBounds(hints) {
+  if (!Array.isArray(hints)) return []
+  const results = []
+  const seen = new Set()
+
+  for (const hint of hints) {
+    if (!['bounding-box', 'hi-res-bounding-box', 'page-bounding-box'].includes(hint.kind)) continue
+    const [x1, y1, x2, y2] = hint.values ?? []
+    if (![x1, y1, x2, y2].every(Number.isFinite)) continue
+    const x = Math.min(x1, x2)
+    const y = Math.min(y1, y2)
+    const width = Math.abs(x2 - x1)
+    const height = Math.abs(y2 - y1)
+    if (width <= 0 || height <= 0) continue
+    const key = `${x},${y},${width},${height}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    results.push({
+      kind: hint.kind,
+      rect: { x, y, width, height },
+      note: 'PostScript/EPS 边界标记，表示内容范围，不等同于画板',
+    })
+  }
+
+  return results
 }

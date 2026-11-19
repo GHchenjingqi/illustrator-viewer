@@ -27,6 +27,9 @@ import {
   createDiagnostic,
 } from '../utils/errors.js'
 import { extractPageBoxes } from './PageBoxExtractor.js'
+import { extractAi24Zstd } from './AI24Extractor.js'
+import { decompressZstd } from '../utils/zstd.js'
+import { decodeLatin1 } from '../utils/encoding.js'
 
 export const ContainerKind = Object.freeze({
   PDF: 'pdf',
@@ -442,6 +445,7 @@ async function analyzeCompressedBlock(parser, marker, endMarkerId, formatName, o
   let trailingData = false
   let failure = null
   let unsupported = null
+  let extraction = null
 
   if (encoding === 'zlib' || encoding === 'ascii85+zlib') {
     const result = await inflatePrivateData(compressed, options)
@@ -451,17 +455,24 @@ async function analyzeCompressedBlock(parser, marker, endMarkerId, formatName, o
     } else {
       failure = result.error
     }
-  } else if (encoding === 'zstd' || encoding === 'ascii85+zstd') {
+  } else if (encoding === 'zstd') {
+    extraction = await extractAi24Zstd(parser.bytes, marker.offset, {
+      maxBytes: MAX_INFLATE_BYTES,
+      signal: options.signal,
+    })
+    if (extraction.status === 'decoded') {
+      decoded = extraction.bytes
+    } else {
+      failure = extraction.error
+    }
+  } else if (encoding === 'ascii85+zstd') {
     try {
-      const result = await inflateBytes(compressed, {
+      decoded = decompressZstd(compressed, {
         maxBytes: MAX_INFLATE_BYTES,
         signal: options.signal,
-        format: 'zstd',
       })
-      decoded = result.bytes
-      trailingData = result.trailingData
     } catch (error) {
-      unsupported = error instanceof Error ? error.message : String(error)
+      failure = error instanceof Error ? error.message : String(error)
     }
   } else {
     // 未压缩的原始私有数据（旧版本或已解压的工具输出）
@@ -498,7 +509,7 @@ async function analyzeCompressedBlock(parser, marker, endMarkerId, formatName, o
     )
   }
 
-  const text = new TextDecoder('latin1').decode(decoded)
+  const text = decodeLatin1(decoded)
   const decodedMarkers = collectDecodedMarkers(text)
 
   return {
@@ -507,6 +518,11 @@ async function analyzeCompressedBlock(parser, marker, endMarkerId, formatName, o
     compression: encoding,
     decodedBytes: decoded.byteLength,
     textLength: text.length,
+    declaredDataLength: extraction?.compressedBytes ?? base.declaredDataLength,
+    chunkCount: extraction?.chunkCount ?? null,
+    chunksUsed: extraction?.chunksUsed ?? null,
+    streamObject: extraction?.objectNumber ?? null,
+    dataSource: extraction?.source ?? null,
     trailingData,
     preview: sanitizePreview(text),
     decodedMarkers,
@@ -561,7 +577,7 @@ async function analyzeAi9PrivateData(parser, marker, options) {
   }
 
   const region = parser.bytes.subarray(start, start + regionLength)
-  const rawText = new TextDecoder('latin1').decode(region)
+  const rawText = decodeLatin1(region)
   const cleaned = rawText
     .split(/\r?\n/)
     .filter((line) => !line.trimStart().startsWith('%%'))
@@ -608,7 +624,7 @@ async function analyzeAi9PrivateData(parser, marker, options) {
     return { ...base, status: 'failed', compression: encoding, error: failure, diagnostics }
   }
 
-  const text = new TextDecoder('latin1').decode(decoded)
+  const text = decodeLatin1(decoded)
   return {
     ...base,
     status: 'decoded',
@@ -750,6 +766,13 @@ export async function detectStructure(input, options = {}) {
   diagnostics.push(...privateData.diagnostics)
 
   const creator = rawCreator ?? findCreator(privateData.text) ?? null
+  const decodedText = privateData.text ?? ''
+  const applicationVersion =
+    /%%AI8_CreatorVersion:\s*([0-9][0-9.]*)/.exec(decodedText)?.[1] ?? null
+  const layerCountMatch = /%AI5_NumLayers:\s*(\d+)/.exec(decodedText)
+  const declaredLayerCount = layerCountMatch ? Number(layerCountMatch[1]) : null
+  const artboardCountMatch = /(-?\d+)\s*\/Int\s*\(LastArtboardID\)/.exec(decodedText)
+  const declaredArtboardCount = artboardCountMatch ? Number(artboardCountMatch[1]) : null
   const { versions: aiFormatVersions, primary: aiFormatVersion } = deriveAiFormatVersion(
     aiTags,
     privateData,
@@ -870,6 +893,9 @@ export async function detectStructure(input, options = {}) {
       aiFormatLabel: describeAiVersion(aiFormatVersion),
       creator,
       creatorLabel: describeCreatorVersion(creator),
+      applicationVersion,
+      declaredLayerCount,
+      declaredArtboardCount,
       creatorSource: rawCreator ? 'raw' : creator ? 'private-data' : null,
       encoding: 'binary',
     },
@@ -885,6 +911,10 @@ export async function detectStructure(input, options = {}) {
       compression: privateData.compression,
       decodedBytes: decodedSize,
       textLength: privateData.textLength,
+      chunkCount: privateData.chunkCount ?? null,
+      chunksUsed: privateData.chunksUsed ?? null,
+      streamObject: privateData.streamObject ?? null,
+      dataSource: privateData.dataSource ?? null,
       trailingData: privateData.trailingData,
       preview: privateData.preview,
       decodedMarkers: privateData.decodedMarkers,

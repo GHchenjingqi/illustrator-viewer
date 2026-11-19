@@ -70,4 +70,11 @@ describe('PostScriptLexer', () => {
     expect(result.truncated).toBe(true)
     expect(result.diagnostics.some((item) => item.code === 'TOKEN_LIMIT')).toBe(true)
   })
+
+  it('跳过 %%BeginData 二进制块', () => {
+    const source = '%%BeginData: 4\r\n\u0000\u0001\u0002\u0003\r\n%%EndData\r\n0 0 m 10 0 l'
+    const result = tokenizePostScript(source)
+    expect(result.tokens.map((token) => token.value)).toEqual([0, 0, 'm', 10, 0, 'l'])
+    expect(result.diagnostics.some((item) => item.code === 'BINARY_DATA_SKIPPED')).toBe(true)
+  })
 })

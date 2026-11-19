@@ -11,6 +11,7 @@
  */
 
 import { AiViewerError, ErrorCodes, throwIfAborted } from '../utils/errors.js'
+import { decodeLatin1 } from '../utils/encoding.js'
 
 const DEFAULT_MAX_STRING_LENGTH = 4 * 1024 * 1024
 const DEFAULT_MAX_INFLATE_BYTES = 256 * 1024 * 1024
@@ -87,7 +88,7 @@ const ASCII85_WHITESPACE = new Set([0x00, 0x09, 0x0a, 0x0c, 0x0d, 0x20])
  */
 export function decodeAscii85(input, options = {}) {
   const maxBytes = options.maxBytes ?? DEFAULT_MAX_ASCII85_BYTES
-  const target = typeof input === 'string' ? input : new TextDecoder('latin1').decode(input)
+  const target = typeof input === 'string' ? input : decodeLatin1(input)
 
   let capacity = Math.min(64 * 1024, Math.max(16, target.length))
   let output = new Uint8Array(capacity)
@@ -378,7 +379,7 @@ export class BinaryParser {
 
   toLatin1(offset = 0, length = this.length - offset) {
     this.assertRange(offset, length)
-    return new TextDecoder('latin1').decode(this.bytes.subarray(offset, offset + length))
+    return decodeLatin1(this.bytes.subarray(offset, offset + length))
   }
 
   findAscii(needle, options = {}) {

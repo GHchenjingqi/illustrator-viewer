@@ -82,8 +82,7 @@ describe('PostScriptParser - 基础路径与颜色', () => {
   })
 })
 
-describe('PostScriptParser - 变换与状态', () => {
-  it('应用 translate/scale/rotate/cm 到对象变换与包围盒', () => {
+describe('PostScriptParser - 变换与状态', () => {  it('应用 translate/scale/rotate/cm 到对象变换与包围盒', () => {
     const result = parse('2 0 0 2 10 20 cm 0 0 m 10 10 l 0 0 0 rg S')
     const [vector] = result.vectors
     expect(vector.transform).toEqual([2, 0, 0, 2, 10, 20])
@@ -124,12 +123,65 @@ describe('PostScriptParser - 变换与状态', () => {
   })
 })
 
+describe('PostScriptParser - AI 私有操作符（真实样本校准）', () => {
+  it('支持大写路径操作符 C / L / Y / H / F', () => {
+    const result = parse('0 0 m 10 0 L 10 10 20 20 30 30 C 30 30 40 40 Y H F')
+    expect(result.vectorCount).toBe(1)
+    const [vector] = result.vectors
+    expect(vector.type).toBe('path')
+    expect(vector.subpaths[0].closed).toBe(true)
+    expect(vector.subpaths[0].segments.map((segment) => segment.type)).toEqual([
+      'M',
+      'L',
+      'C',
+      'C',
+    ])
+  })
+
+  it('解析 AI 自定义颜色 Xa 与填充规则 Xw', () => {
+    const result = parse(
+      '1 Xw 0.1 0.2 0.3 0.4 0.5 0.6 0.7 Xa 0 0 m 10 0 l 10 10 l h f',
+    )
+    const [vector] = result.vectors
+    expect(vector.fill.type).toBe('custom')
+    expect(vector.fill.values).toHaveLength(7)
+    expect(vector.fillRule).toBe('evenodd')
+    expect(result.stats.customColors).toBe(1)
+  })
+
+  it('渐变填充标记为 gradient，而不是错误地使用黑色', () => {
+    const result = parse(
+      '0 0 m 10 0 l 10 10 l h Bb 1 (Gradient A) 0 0 -90 1 1 0 0 1 0 0 1 Bg 1 0 0 1 0 0 Xm f 0 BB',
+    )
+    const [vector] = result.vectors
+    expect(vector.fill.type).toBe('gradient')
+    expect(vector.fill.name).toBe('Gradient A')
+    expect(vector.fill.matrices).toHaveLength(1)
+    expect(result.stats.gradients).toBe(1)
+  })
+
+  it('图层头 Lb 清理操作数栈', () => {
+    const result = parse(
+      '1 1 1 1 0 0 1 0 79 128 255 0 50 0 Lb (Layer 1) Ln 0 0 m 10 0 l S',
+    )
+    expect(result.vectorCount).toBe(1)
+    expect(result.stats.layers).toBe(1)
+    expect(result.stats.leftoverOperands).toBe(0)
+  })
+
+  it('跳过 AI 标点/渐变定义 token 而不产生未知操作符', () => {
+    const result = parse('1 2 , 3 : 4 ; 0 0 m 10 0 l S')
+    expect(result.unknownOperators).toHaveLength(0)
+    expect(result.unsupportedFeatures.some((item) => item.feature === 'punctuation')).toBe(true)
+  })
+})
+
 describe('PostScriptParser - 安全与容错', () => {
   it('未知操作符被记录并跳过', () => {
-    const result = parse('0 0 m 10 0 l S Xa Xb foo')
+    const result = parse('0 0 m 10 0 l S Xq Xb foo')
     expect(result.vectors.length).toBe(1)
     expect(result.unknownOperators.map((item) => item.operator)).toEqual(
-      expect.arrayContaining(['Xa', 'Xb', 'foo']),
+      expect.arrayContaining(['Xq', 'Xb', 'foo']),
     )
   })
 

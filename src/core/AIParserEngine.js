@@ -11,6 +11,7 @@
 import { AIFileReader, DEFAULT_MAX_FILE_SIZE } from './AIFileReader.js'
 import { detectStructure } from './AIFileDetector.js'
 import { parsePostScript } from './PostScriptParser.js'
+import { extractNativeArtboards } from './AIArtboardExtractor.js'
 import { buildCompatibilityReport } from '../engine/CompatibilityEngine.js'
 import {
   DiagnosticSeverity,
@@ -18,6 +19,7 @@ import {
   isAbortError,
   toDiagnosticError,
 } from '../utils/errors.js'
+import { decodeLatin1 } from '../utils/encoding.js'
 
 const now = () => globalThis.performance?.now?.() ?? Date.now()
 
@@ -27,27 +29,43 @@ export const ENGINE_VERSION = '0.2.0'
 const MAX_GRAPHICS_TEXT_BYTES = 16 * 1024 * 1024
 const POSTSCRIPT_BODY_MARKERS = ['%%EndSetup', '%%EndProlog', '%AI5_BeginLayer', '%%BeginScript']
 
+function findDrawingStart(text) {
+  const layer = text.indexOf('%AI5_BeginLayer')
+  if (layer >= 0) return layer
+
+  let start = -1
+  for (const marker of ['%%EndSetup', '%%EndProlog', '%%BeginScript']) {
+    const index = text.lastIndexOf(marker)
+    if (index > start) start = index
+  }
+  return start >= 0 ? start : 0
+}
+
 /**
  * 决定从哪一段文本执行基础绘图解析。
- * - 私有数据已解码：直接解析私有数据
+ * - 私有数据已解码：从 %AI5_BeginLayer 开始解析，跳过 prolog / 渐变定义中的非 PostScript 数组
  * - EPS / PostScript：解析 %%EndSetup 之后的绘图段
  * - PDF 且无私有数据：跳过（阶段 2 不解析 PDF 内容流）
  */
 function resolveGraphicsSource(bytes, report) {
   const decodedText = report.privateData?.text
   if (typeof decodedText === 'string' && decodedText.length > 0) {
+    const start = findDrawingStart(decodedText)
     return {
-      text: decodedText,
+      text: decodedText.slice(start),
       mode: 'ai-private',
       source: 'private-data',
       truncated: false,
+      drawingStart: start,
+      fullTextLength: decodedText.length,
+      nativeArtboards: extractNativeArtboards(decodedText),
     }
   }
 
   const container = report.detection.container
   if (container === 'postscript' || container === 'eps') {
     const limit = Math.min(bytes.byteLength, MAX_GRAPHICS_TEXT_BYTES)
-    let text = new TextDecoder('latin1').decode(bytes.subarray(0, limit))
+    let text = decodeLatin1(bytes.subarray(0, limit))
 
     let start = -1
     for (const marker of POSTSCRIPT_BODY_MARKERS) {
@@ -165,8 +183,24 @@ export class AIParserEngine {
               mode: graphicsSource.mode,
               source: graphicsSource.source,
               artboardHints: report.structure.pageBoxHints,
+              container: report.detection.container,
             })
             graphics.textLength = graphicsSource.text.length
+            graphics.drawingStart = graphicsSource.drawingStart ?? 0
+            graphics.fullTextLength = graphicsSource.fullTextLength ?? graphicsSource.text.length
+            if (graphicsSource.nativeArtboards?.length) {
+              graphics.artboards = graphicsSource.nativeArtboards
+              graphics.artboardSource = 'native-artboard'
+              report.diagnostics.push(
+                createDiagnostic(
+                  'NATIVE_ARTBOARD_DATA',
+                  `从 AI DocumentData 解析到 ${graphics.artboards.length} 个原生画板`,
+                  DiagnosticSeverity.INFO,
+                ),
+              )
+            } else {
+              graphics.artboardSource = graphics.artboards.length > 0 ? 'page-box-hints' : 'none'
+            }
             if (graphicsSource.truncated) {
               graphics.truncated = true
               graphics.truncatedReason = graphics.truncatedReason ?? 'text-size-limit'

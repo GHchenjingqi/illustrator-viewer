@@ -18,6 +18,19 @@ const EPSILON = 1e-6
 
 export function normalizePaint(paint) {
   if (!paint || paint.type === 'none') return { type: 'none' }
+  if (paint.type === 'gradient') {
+    return {
+      type: 'gradient',
+      name: paint.name ?? null,
+      matrices: Array.isArray(paint.matrices) ? paint.matrices.map((matrix) => [...matrix]) : [],
+    }
+  }
+  if (paint.type === 'custom') {
+    return {
+      type: 'custom',
+      values: Array.isArray(paint.values) ? paint.values.filter(Number.isFinite) : [],
+    }
+  }
   if (!['gray', 'rgb', 'cmyk'].includes(paint.type)) {
     return paint.name ? { type: 'named', name: String(paint.name) } : { type: 'unknown' }
   }
@@ -209,6 +222,9 @@ export class VectorBuilder {
       transform,
       bounds: boundsResult?.bounds ?? null,
       boundsApproximate: boundsResult?.approximate ?? false,
+      nonPrinting: Boolean(input.nonPrinting),
+      compound: Boolean(input.compound),
+      groupDepth: Number.isInteger(input.groupDepth) ? input.groupDepth : 0,
       support: 'PARTIAL',
     }
 

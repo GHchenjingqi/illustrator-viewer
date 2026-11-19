@@ -88,6 +88,25 @@ export class PostScriptLexer {
       }
 
       if (code === 0x25) {
+        if (this.source.startsWith('%%BeginData', this.offset)) {
+          const endMarker = this.source.indexOf('%%EndData', this.offset)
+          if (endMarker > 0) {
+            const endLine = this.source.indexOf('\n', endMarker)
+            const nextOffset = endLine < 0 ? this.length : endLine + 1
+            const startOffset = this.offset
+            this.line += this.countNewlines(startOffset, nextOffset)
+            this.offset = nextOffset
+            this.diagnostics.push(
+              createDiagnostic(
+                'BINARY_DATA_SKIPPED',
+                `已跳过二进制数据块（${nextOffset - startOffset} 字节）`,
+                DiagnosticSeverity.INFO,
+                { offset: startOffset, bytes: nextOffset - startOffset },
+              ),
+            )
+            continue
+          }
+        }
         this.skipComment()
         continue
       }
@@ -249,6 +268,14 @@ export class PostScriptLexer {
         break
       }
     }
+  }
+
+  countNewlines(start, end) {
+    let count = 0
+    for (let index = start; index < end; index += 1) {
+      if (this.source.charCodeAt(index) === 0x0a) count += 1
+    }
+    return count
   }
 
   readString() {

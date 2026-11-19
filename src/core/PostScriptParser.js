@@ -15,7 +15,8 @@
 import { PostScriptLexer, PostScriptTokenType } from './PostScriptLexer.js'
 import { PostScriptGraphicsState, clonePaint } from './PostScriptGraphicsState.js'
 import { VectorBuilder } from './VectorParser.js'
-import { extractPageBoxes, pageBoxesToArtboards } from './PageBoxExtractor.js'
+import { extractPageBoxes, pageBoxesToArtboards, pageBoxesToContentBounds } from './PageBoxExtractor.js'
+import { decodeMaybeUtf8 } from '../utils/encoding.js'
 import {
   createDiagnostic,
   DiagnosticSeverity,
@@ -47,18 +48,19 @@ const COLOR_SPACES = Object.freeze({
 })
 
 const WHITELIST = new Set([
-  // 路径
-  'moveto', 'm', 'lineto', 'l', 'curveto', 'c', 'v', 'y', 'closepath', 'h',
-  'newpath', 'n', 're', 'rect',
+  // 路径（标准 PostScript + AI 大写变体）
+  'moveto', 'm', 'lineto', 'l', 'L', 'curveto', 'c', 'C', 'v', 'V', 'y', 'Y',
+  'closepath', 'h', 'H', 'newpath', 'n', 'N', 're', 'rect',
   // 绘制
-  'fill', 'f', 'eofill', 'f*', 'stroke', 'S', 's', 'B', 'B*', 'b', 'b*',
+  'fill', 'f', 'F', 'eofill', 'f*', 'stroke', 'S', 's', 'B', 'B*', 'b', 'b*',
   'fillstroke', 'clip', 'W', 'W*', 'eoclip',
   // 颜色
   'setrgbcolor', 'rg', 'setgray', 'g', 'setcmykcolor', 'k', 'sethsbcolor',
   'RG', 'G', 'K', 'cs', 'CS', 'sc', 'scn', 'SC', 'SCN',
+  'Xa', 'XA',
   // 线型
   'setlinewidth', 'w', 'setlinecap', 'J', 'setlinejoin', 'j',
-  'setmiterlimit', 'M', 'setdash', 'd',
+  'setmiterlimit', 'M', 'setdash', 'd', 'D', 'i',
   // 图形状态与变换
   'gsave', 'grestore', 'q', 'Q', 'translate', 'scale', 'rotate', 'concat', 'cm',
   // 栈与算术
@@ -66,6 +68,15 @@ const WHITELIST = new Set([
   'clear', 'idiv', 'mod',
   // 过程/字典（安全跳过，不执行）
   'def', 'bind', 'dict', 'begin', 'end', 'currentdict',
+  // AI 私有结构（阶段 2 真实样本校准）
+  'Lb', 'Ln', 'LB', 'u', 'U', '*u', '*U', 'AE', 'A', 'As', 'Ae', 'Ap',
+  'Xw', 'Xy', 'XW', 'XR', 'O', 'R',
+  // 渐变
+  'Bb', 'BB', 'Bd', 'BD', 'Bg', 'Bc', 'Bm', 'Xm', 'Bs', 'Br',
+  // 栅格 / 置入文件 / 图案
+  'XI', 'Xh', 'XH', 'XG', 'XN', 'Xd', 'Np', 'NP', 'Pc', 'Pb', 'PB', 'E', 'e',
+  'annotatepage', 'showpage',
+  ',', ':', ';', '`', '~',
 ])
 
 const UNSUPPORTED_COLLECTIONS = Object.freeze({
@@ -130,6 +141,13 @@ export class PostScriptParser {
     this.currentPoint = null
     this.pointCount = 0
     this.pathDisabled = false
+    this.gradientDepth = 0
+    this.currentGradient = null
+    this.nonPrintingDepth = 0
+    this.groupDepth = 0
+    this.compoundDepth = 0
+    this.windingRule = 'nonzero'
+    this.currentLayerName = null
     this.unknownOperators = new Map()
     this.featureCounts = new Map()
     this.diagnostics = []
@@ -146,6 +164,14 @@ export class PostScriptParser {
       suppressedPaths: 0,
       maxStackObserved: 0,
       leftoverOperands: 0,
+      layers: 0,
+      groups: 0,
+      compoundPaths: 0,
+      nonPrintingBlocks: 0,
+      gradients: 0,
+      customColors: 0,
+      rasterImages: 0,
+      appearances: 0,
     }
     this.truncated = false
     this.truncatedReason = null
@@ -173,7 +199,8 @@ export class PostScriptParser {
       Array.isArray(options.artboardHints) && options.artboardHints.length > 0
         ? options.artboardHints
         : extractPageBoxes(source, { limit: 24 })
-    const artboards = pageBoxesToArtboards(artboardHints)
+    const artboards = pageBoxesToArtboards(artboardHints, { container: options.container })
+    const contentBounds = pageBoxesToContentBounds(artboardHints)
 
     this.stats.leftoverOperands = this.stack.length
 
@@ -187,6 +214,7 @@ export class PostScriptParser {
       vectors: this.builder.objects,
       vectorCount: this.builder.objects.length,
       artboards,
+      contentBounds,
       artboardHintCount: artboardHints.length,
       unknownOperators: this.collectUnknownOperators(),
       unsupportedFeatures: this.collectFeatures(),
@@ -311,6 +339,30 @@ export class PostScriptParser {
     return value
   }
 
+  takeOperands(count) {
+    if (this.stack.length < count) {
+      this.diagnose('STACK_UNDERFLOW', `操作符需要 ${count} 个操作数`, DiagnosticSeverity.WARNING)
+      return null
+    }
+    const values = this.stack.slice(-count)
+    this.stack.length -= count
+    return values
+  }
+
+  takeTrailingNumbers(maxCount) {
+    let count = 0
+    while (
+      count < maxCount &&
+      typeof this.stack[this.stack.length - 1 - count] === 'number'
+    ) {
+      count += 1
+    }
+    if (count === 0) return null
+    const values = this.stack.slice(-count)
+    this.stack.length -= count
+    return values
+  }
+
   takeName() {
     const value = this.pop()
     if (!isName(value)) {
@@ -417,20 +469,23 @@ export class PostScriptParser {
         break
       }
       case 'lineto':
-      case 'l': {
+      case 'l':
+      case 'L': {
         const values = this.takeNumbers(2)
         if (values) this.appendLine(values[0], values[1])
         break
       }
       case 'curveto':
-      case 'c': {
+      case 'c':
+      case 'C': {
         const values = this.takeNumbers(6)
         if (values) {
           this.appendCurve(values[0], values[1], values[2], values[3], values[4], values[5])
         }
         break
       }
-      case 'v': {
+      case 'v':
+      case 'V': {
         const values = this.takeNumbers(4)
         if (values) {
           const current = this.currentPoint ?? { x: 0, y: 0 }
@@ -438,7 +493,8 @@ export class PostScriptParser {
         }
         break
       }
-      case 'y': {
+      case 'y':
+      case 'Y': {
         const values = this.takeNumbers(4)
         if (values) {
           this.appendCurve(values[0], values[1], values[2], values[3], values[2], values[3])
@@ -447,11 +503,13 @@ export class PostScriptParser {
       }
       case 'closepath':
       case 'h':
+      case 'H':
         this.closeSubpath()
         break
 
       case 'newpath':
       case 'n':
+      case 'N':
         this.resetPath()
         break
 
@@ -465,7 +523,8 @@ export class PostScriptParser {
       // ---------- 绘制 ----------
       case 'fill':
       case 'f':
-        this.paint({ fill: true, stroke: false, fillRule: 'nonzero' })
+      case 'F':
+        this.paint({ fill: true, stroke: false, fillRule: null })
         break
       case 'eofill':
       case 'f*':
@@ -481,14 +540,14 @@ export class PostScriptParser {
         break
       case 'B':
       case 'fillstroke':
-        this.paint({ fill: true, stroke: true, fillRule: 'nonzero' })
+        this.paint({ fill: true, stroke: true, fillRule: null })
         break
       case 'B*':
         this.paint({ fill: true, stroke: true, fillRule: 'evenodd' })
         break
       case 'b':
         this.closeAllSubpaths()
-        this.paint({ fill: true, stroke: true, fillRule: 'nonzero' })
+        this.paint({ fill: true, stroke: true, fillRule: null })
         break
       case 'b*':
         this.closeAllSubpaths()
@@ -585,6 +644,196 @@ export class PostScriptParser {
         }
         break
       }
+
+      // ---------- AI 扩展：颜色 / 叠印 / 画笔样式 ----------
+      case 'Xa':
+      case 'XA': {
+        const values = this.takeTrailingNumbers(7)
+        if (values && (values.length === 3 || values.length === 4 || values.length === 7)) {
+          const paint = { type: 'custom', values }
+          if (operator === 'XA') this.graphics.strokeColor = paint
+          else this.graphics.fillColor = paint
+          this.stats.customColors += 1
+          this.recordFeature(
+            'custom-color',
+            `AI 自定义/专色颜色（${values.length} 个分量），具体颜色空间待更多样本确认`,
+          )
+        } else {
+          this.recordFeature('custom-color', 'Xa/XA 参数数量不在已知范围')
+        }
+        break
+      }
+      case 'Xw': {
+        const values = this.takeNumbers(1)
+        if (values) {
+          this.windingRule = values[0] === 1 ? 'evenodd' : 'nonzero'
+          this.recordFeature('winding-rule', `AI 填充规则 Xw=${values[0]}`)
+        }
+        break
+      }
+      case 'O':
+      case 'R': {
+        const values = this.takeNumbers(1)
+        if (values) {
+          this.recordFeature('overprint', `叠印设置 ${operator}=${values[0]}`)
+        }
+        break
+      }
+      case 'Xy': {
+        const values = this.takeNumbers(5)
+        if (values) this.recordFeature('paint-style', 'AI 画笔/描边样式 Xy')
+        break
+      }
+      case 'XW': {
+        this.takeOperands(2)
+        this.recordFeature('paint-style', 'AI 画笔样式 XW')
+        break
+      }
+      case 'XR': {
+        this.takeNumbers(1)
+        this.recordFeature('paint-style', 'AI 画笔引用 XR')
+        break
+      }
+      case 'D': {
+        const values = this.takeNumbers(1)
+        if (values) this.recordFeature('dash-style', `AI 虚线样式索引 ${values[0]}`)
+        break
+      }
+      case 'Ap':
+      case 'As':
+      case 'Ae':
+      case 'AE':
+      case 'A': {
+        this.takeNumbers(1)
+        this.stats.appearances += 1
+        this.recordFeature('appearance', 'AI 外观/透明度属性未参与渲染')
+        break
+      }
+
+      // ---------- AI 扩展：图层 / 组 / 复合路径 ----------
+      case 'Lb':
+        this.stack.length = 0
+        this.stats.layers += 1
+        this.recordFeature('layer', 'AI 图层边界')
+        break
+      case 'Ln': {
+        const name = this.pop()
+        if (typeof name === 'string') this.currentLayerName = decodeMaybeUtf8(name)
+        break
+      }
+      case 'LB':
+        this.recordFeature('layer', 'AI 图层结束')
+        break
+      case 'u':
+        this.groupDepth += 1
+        this.stats.groups += 1
+        break
+      case 'U':
+        this.groupDepth = Math.max(0, this.groupDepth - 1)
+        break
+      case '*u':
+        this.compoundDepth += 1
+        this.stats.compoundPaths += 1
+        break
+      case '*U':
+        this.compoundDepth = Math.max(0, this.compoundDepth - 1)
+        break
+      case 'Np':
+        this.nonPrintingDepth += 1
+        this.stats.nonPrintingBlocks += 1
+        this.recordFeature('non-printing', '非打印/符号内容')
+        break
+      case 'NP':
+        this.nonPrintingDepth = Math.max(0, this.nonPrintingDepth - 1)
+        break
+
+      // ---------- AI 扩展：渐变 ----------
+      case 'Bb':
+        this.gradientDepth += 1
+        this.currentGradient = { name: null, matrices: [] }
+        this.stats.gradients += 1
+        this.recordFeature('gradient', '渐变填充尚未解析，仅标记为 gradient，不使用黑色替代')
+        break
+      case 'BB':
+        this.gradientDepth = Math.max(0, this.gradientDepth - 1)
+        this.currentGradient = null
+        this.stack.length = 0
+        break
+      case 'Bg': {
+        const name = [...this.stack].reverse().find((value) => typeof value === 'string')
+        if (this.currentGradient) this.currentGradient.name = name ? decodeMaybeUtf8(name) : null
+        this.stack.length = 0
+        break
+      }
+      case 'Xm':
+      case 'Bc':
+      case 'Bm': {
+        const values = this.takeNumbers(6)
+        if (values && this.currentGradient) this.currentGradient.matrices.push(values)
+        break
+      }
+      case 'Bd':
+      case 'BD':
+      case 'Bs':
+      case 'Br':
+        this.stack.length = 0
+        this.recordFeature('gradient', '渐变定义数据已跳过')
+        break
+
+      // ---------- AI 扩展：栅格 / 置入文件 / 图案 ----------
+      case 'Xh': {
+        this.takeNumbers(3)
+        this.takeArray()
+        this.stats.rasterImages += 1
+        this.recordFeature('raster-image', '嵌入栅格图未解码')
+        this.stack.length = 0
+        break
+      }
+      case 'XH':
+      case 'XI':
+        this.stats.rasterImages += 1
+        this.recordFeature('raster-image', '栅格图数据块已跳过')
+        this.stack.length = 0
+        break
+      case 'XG': {
+        this.takeOperands(2)
+        this.recordFeature('placed-image', '置入/链接文件未解析')
+        break
+      }
+      case 'XN': {
+        this.pop()
+        this.recordFeature('image-colorspace', '图像颜色空间')
+        break
+      }
+      case 'Xd': {
+        this.takeOperands(2)
+        this.recordFeature('image-mask', '图像蒙版/扩展数据')
+        break
+      }
+      case 'Pc':
+      case 'Pb':
+      case 'PB':
+      case 'E':
+      case 'e':
+        this.stack.length = 0
+        this.recordFeature('pattern-brush', '图案/画笔内容未解析')
+        break
+      case 'i': {
+        this.takeNumbers(1)
+        break
+      }
+      case 'annotatepage':
+      case 'showpage':
+        this.recordFeature('page-annotation', '页面注解/结束操作')
+        break
+      case ',':
+      case ':':
+      case ';':
+      case '`':
+      case '~':
+        this.stack.length = 0
+        this.recordFeature('punctuation', 'AI 字典/渐变数据中的标点 token')
+        break
 
       // ---------- 线型 ----------
       case 'setlinewidth':
@@ -906,11 +1155,21 @@ export class PostScriptParser {
     }
 
     const graphics = this.graphics
+    const fillPaint = options.fill
+      ? this.gradientDepth > 0
+        ? {
+            type: 'gradient',
+            name: this.currentGradient?.name ?? null,
+            matrices: this.currentGradient?.matrices ?? [],
+          }
+        : clonePaint(graphics.fillColor)
+      : null
+
     const object = this.builder.addPath({
       subpaths: this.subpaths,
-      fill: options.fill ? clonePaint(graphics.fillColor) : null,
+      fill: fillPaint,
       stroke: options.stroke ? clonePaint(graphics.strokeColor) : null,
-      fillRule: options.fillRule,
+      fillRule: options.fillRule ?? this.windingRule,
       transform: [...graphics.ctm],
       strokeWidth: graphics.lineWidth,
       lineCap: graphics.lineCap,
@@ -918,6 +1177,9 @@ export class PostScriptParser {
       miterLimit: graphics.miterLimit,
       dashArray: graphics.dashArray,
       dashOffset: graphics.dashOffset,
+      nonPrinting: this.nonPrintingDepth > 0,
+      compound: this.compoundDepth > 0,
+      groupDepth: this.groupDepth,
     })
 
     if (object) this.stats.paintedObjects += 1
@@ -930,7 +1192,7 @@ export class PostScriptParser {
 /**
  * 便捷入口。
  * @param {string} source
- * @param {{ mode?: string, source?: string, artboardHints?: object[], maxTokens?: number }} [options]
+ * @param {{ mode?: string, source?: string, artboardHints?: object[], container?: string, maxTokens?: number }} [options]
  */
 export function parsePostScript(source, options = {}) {
   return new PostScriptParser(options).parse(source, options)

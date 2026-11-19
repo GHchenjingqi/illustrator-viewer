@@ -43,6 +43,10 @@ export {
   translationMatrix,
 } from './engine/TransformEngine.js'
 export { buildCompatibilityReport, SupportLevel } from './engine/CompatibilityEngine.js'
+export { extractAi24Zstd } from './core/AI24Extractor.js'
+export { extractNativeArtboards } from './core/AIArtboardExtractor.js'
+export { decompressZstd } from './utils/zstd.js'
+export { decodeLatin1, decodeMaybeUtf8 } from './utils/encoding.js'
 export {
   AiViewerError,
   ErrorCodes,

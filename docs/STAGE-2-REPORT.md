@@ -2,7 +2,7 @@
 
 **日期：** 2026-11-19
 **阶段：** 2 / 7 — 基础解析引擎
-**状态：** 标准 PostScript 绘图子集实现完成；真实 AI 样本验证待补
+**状态：** 已完成；使用 1 个真实 AI24 样本（Illustrator 29.3）校准
 **引擎版本：** 0.2.0
 
 ---
@@ -11,137 +11,131 @@
 
 | 模块 | 文件 | 说明 |
 |---|---|---|
-| PostScript 词法器 | `src/core/PostScriptLexer.js` | 数字、名字、字符串、十六进制串、数组、字典、过程、注释；token 上限与诊断 |
-| PostScript 解析器 | `src/core/PostScriptParser.js` | 白名单操作符、路径构建、颜色、线型、变换、状态栈、未知操作符记录 |
+| PostScript 词法器 | `src/core/PostScriptLexer.js` | 数字、名字、字符串、十六进制、数组、字典、过程、注释；跳过 `%%BeginData` 二进制块 |
+| PostScript 解析器 | `src/core/PostScriptParser.js` | 白名单操作符、AI 私有操作符、路径、颜色、线型、变换、状态栈、诊断 |
 | 图形状态 | `src/core/PostScriptGraphicsState.js` | CTM、填充/描边颜色、线宽、端点、连接、斜接、虚线 |
-| 矢量对象 | `src/core/VectorParser.js` | 矩形 / 线段 / 路径分类、颜色规范化、包围盒、对象上限 |
-| 页面边界 | `src/core/PageBoxExtractor.js` | BoundingBox / HiResBoundingBox / PageBoundingBox / MediaBox / CropBox |
-| 矩阵工具 | `src/engine/TransformEngine.js` | 六元组仿射矩阵、平移/缩放/旋转、坐标变换 |
-| 引擎集成 | `src/core/AIParserEngine.js` | 检测 → 私有数据/绘图段 → 解析 → 兼容性报告；瞬态文本返回前移除 |
-| UI | `src/components/AiInspector.vue` | 阶段 2 指标、矢量对象表、画板候选、未知操作符、解析诊断 |
-| 测试 | `tests/parser/*.test.js` | 7 个文件 / 69 项测试 |
+| 矢量对象 | `src/core/VectorParser.js` | 矩形/线段/路径分类、渐变/自定义颜色标记、包围盒、对象上限 |
+| AI24 解压 | `src/core/AI24Extractor.js` + `src/utils/zstd.js` | PDF stream 分块拼接、zstd 前缀解压、fzstd JS 回退 |
+| 原生画板 | `src/core/AIArtboardExtractor.js` | DocumentData ArtboardArray → 名称/坐标/矩形 |
+| 页面边界 | `src/core/PageBoxExtractor.js` | BoundingBox / MediaBox 回退；内容边界与画板分离 |
+| 编码工具 | `src/utils/encoding.js` | 字节保持 Latin-1、UTF-8 名称还原 |
+| 矩阵工具 | `src/engine/TransformEngine.js` | 六元组仿射矩阵 |
+| 引擎集成 | `src/core/AIParserEngine.js` | 检测 → 私有数据 → 绘图段 → 解析 → 画板 → 兼容性 |
+| UI | `src/components/AiInspector.vue` | 分块信息、原生画板、渐变/专色标记、未支持特性、诊断 |
+| 测试 | `tests/parser/` + `tests/integration/` | 10 个文件 / 80 项测试 |
 
 ---
 
 ## 2. 阶段 2 验收对照
 
-| 验收项 | 状态 | 证据 / 说明 |
+| 验收项 | 状态 | 证据 |
 |---|---|---|
-| 能够提取基础图形对象 | ✅（合成样本） | AI12 / AI9 / PostScript 样本均提取到矩形与线段 |
-| 能够识别基础路径 | ✅ | `m/l/c/v/y/h/re/rect`，保留 Move/Line/Cubic/Close |
-| 能够解析基础颜色 | ✅ | RGB / CMYK / Gray；`rg/k/g/RG/K/G/cs/sc/scn/sethsbcolor` |
-| 能够识别画板信息 | ⚠️ 部分 | 仅从 BoundingBox / MediaBox 推断，**不是** Illustrator 原生 Artboard 数据 |
-| 能够输出结构化 JSON | ✅ | `report.graphics` 含 vectors / artboards / unknownOperators / stats / diagnostics |
-| 真实 AI 文件验证 | ❌ 未完成 | 仓库无真实样本；这是阶段 3 前的阻塞项 |
+| 提取基础图形对象 | ✅ | AI24 真实样本提取 841 个对象（839 path / 2 line） |
+| 识别基础路径 | ✅ | `m/l/L/c/C/v/V/y/Y/h/H/re`，保留 Move/Line/Cubic/Close |
+| 解析基础颜色 | ✅ | RGB / CMYK / Gray；渐变与自定义颜色明确标记，不伪装成黑色 |
+| 识别画板信息 | ✅（部分） | 从 DocumentData 解析原生画板「画板 1」1250×700；其他版本待验证 |
+| 输出结构化 JSON | ✅ | `report.graphics` 含 vectors / artboards / contentBounds / stats / diagnostics |
+| 真实 AI 文件验证 | ✅（1 个样本） | AI24 / Illustrator 29.3；AI 8、10、CS6 等仍待补 |
+| 不支持对象明确标记 | ✅ | 渐变、专色、文字、图片、裁剪、外观均有 feature/diagnostic |
 
 ---
 
-## 3. 解析能力
+## 3. 真实样本校准结果
 
-### 3.1 白名单操作符
+样本：`tests/fixtures/real/lengdong-logo.ai`（默认不提交到 Git）
 
-- **路径**：`moveto/m`、`lineto/l`、`curveto/c`、`v`、`y`、`closepath/h`、`newpath/n`、`re`、`rect`
-- **绘制**：`fill/f`、`eofill/f*`、`stroke/S`、`s`、`B/B*`、`b/b*`、`fillstroke`
-- **裁剪**：`clip/W/W*`（仅记录，不参与渲染）
-- **颜色**：`setrgbcolor/rg`、`setgray/g`、`setcmykcolor/k`、`RG/G/K`、`cs/CS/sc/scn/SC/SCN`、`sethsbcolor`
-- **线型**：`setlinewidth/w`、`setlinecap/J`、`setlinejoin/j`、`setmiterlimit/M`、`setdash/d`
-- **状态**：`gsave/grestore`、`q/Q`、`translate/scale/rotate/concat/cm`
-- **栈与算术**：`add/sub/mul/div/idiv/mod/neg/dup/pop/exch/copy/index/clear`
-- **定义类**：`def/bind/dict/begin/end/currentdict`（安全跳过，不执行）
+| 项目 | 结果 |
+|---|---|
+| 文件 | 569,228 B · SHA-256 `57847b69…cb588` |
+| 容器 | PDF 1.6 |
+| 版本 | Creator 24.0；应用版本 29.3.0；AI24 私有格式 |
+| 私有数据 | `%AI24_ZStandard_Data`；PDF 对象 11–18，8 个 stream 块 |
+| 解压 | 8/8 块；489,879 压缩字节 → 8,124,703 字节文本 |
+| 解析 | 65,114 tokens；12,496 个白名单操作符；841 个矢量；0 未知操作符 |
+| 图层 / 组 / 复合 | 1 图层；27 组；39 复合路径 |
+| 颜色 | 540 渐变；252 自定义颜色；48 Gray；1 无填充 |
+| 画板 | 原生「画板 1」，`x=0, y=-700, 1250×700` |
+| 内容边界 | BoundingBox `-462,-680 → 1425,345`（不是画板） |
+| 二进制块 | 6,318,105 字节嵌入栅格数据已跳过 |
+| 浏览器耗时 | 约 360 ms（含 zstd 解压与解析） |
 
-### 3.2 安全策略
+### 关键格式发现
 
-- 过程体 `{ ... }` 整体跳过，不执行。
-- 字典 `<< ... >>` 不求值。
-- 未知操作符：记录名称、次数、首次偏移与行号；不猜测参数与效果。
-- 文字 / 图片 / ExtGState / 图案：记录为未支持，不绘制。
-- 所有数组、路径、栈、对象、诊断均有数量上限。
-
-### 3.3 矢量对象
-
-- 保留局部坐标 + 绘制时 CTM（六元组）。
-- 保留子路径与闭合标记，不栅格化。
-- 类型：`rect` / `line` / `path`。
-- 包围盒：直线/路径基于端点与控制点，三次曲线为近似值（`boundsApproximate`）。
-- 填充规则：`nonzero` / `evenodd`。
-- 颜色：`rgb` / `cmyk` / `gray` / `named` / `none` / `unknown`。
+1. **AI24 zstd 是分块的**：对象 11 以标记开头，对象 12–18 是纯续块；必须按 object 顺序拼接。
+2. **`%%BeginData` 声明长度不可信**：本样本声明 4,738,564，实际块 6,318,105；按 `%%EndData` 边界跳过。
+3. **AI 私有数据不是严格 PostScript**：prolog 中存在大量不闭合 `[` 数组；实际绘图从 `%AI5_BeginLayer` 开始。
+4. **大写路径操作符**：`C` 是 curveto（6 参数），`L` 是 lineto（2 参数）。
+5. **`Xa`/`XA` 在本样本为 7 个分量**，不是 3 个 RGB 分量；阶段 2 只保留原始分量。
+6. **原生画板位于 DocumentData**：名称 + PositionPoint1/2，需按 UTF-8 还原中文名。
 
 ---
 
 ## 4. 测试证据
 
-### 4.1 单元测试
+### 4.1 单元 / 集成测试
 
 ```text
 $ npm test
 
-Test Files  7 passed (7)
-     Tests  69 passed (69)
-  Duration  ~608ms
+Test Files  10 passed (10)
+     Tests  80 passed (80)
+  Duration  ~1.2s
 ```
 
-新增覆盖：
+覆盖：
 
-- 词法：数字、负数、小数、科学计数、名字、字符串转义、嵌套括号、十六进制、注释、布尔、数组/字典/过程、未闭合字符串、token 上限。
-- 解析：矩形/线段/贝塞尔、`v/y`、CMYK/RGB/Gray/HSB、`gsave/grestore`、`cm/translate/rotate`、虚线、裁剪、未知操作符、过程体、文字、损坏输入、路径上限、画板边界。
-- 矢量：分类、颜色规范化、变换包围盒、对象上限。
-- 引擎：完整调度、瞬态文本清理、关闭矢量解析、未知文件、空文件、取消、关闭 SHA-256。
+- 词法：数字、负数、小数、科学计数、名字、字符串转义、嵌套括号、十六进制、注释、布尔、数组/字典/过程、未闭合字符串、token 上限、`%%BeginData` 跳过。
+- 解析：标准与 AI 大写路径、贝塞尔、`v/y`、CMYK/RGB/Gray/HSB、自定义颜色、渐变标记、`gsave/grestore`、变换、虚线、裁剪、图层、组、复合路径、未知操作符、过程体、损坏输入、路径上限、画板边界。
+- AI24：PDF stream 分块拼接、前缀 zstd 解压、单帧回退。
+- 画板：原生 DocumentData 解析、中文名称、无效数据。
+- 引擎：完整调度、瞬态文本清理、关闭矢量解析、未知/空文件、取消、关闭 SHA-256。
+- 真实样本集成测试：文件存在时验证 841 个矢量、原生画板、渐变/专色标记；不存在时自动跳过。
 
 ### 4.2 构建
 
 ```text
 $ npm run build
 
-✓ 27 modules transformed.
-dist/assets/index-*.css   21.80 kB │ gzip:  4.65 kB
-dist/assets/index-*.js   149.69 kB │ gzip: 53.16 kB
-✓ built in 160ms
+✓ 32 modules transformed.
+dist/assets/index-*.css   22.11 kB │ gzip:  4.71 kB
+dist/assets/index-*.js   169.97 kB │ gzip: 60.94 kB
+✓ built in 208ms
 ```
 
-### 4.3 浏览器验证（Chromium，Vite dev）
+### 4.3 浏览器验证
 
-加载 `synthetic-ai12-pdf.bin` 后：
+真实文件拖入后：
 
-- 摘要标签：`PDF` / `high confidence` / `AI12 私有标记` / `PDF 1.7` / `部分支持` / `矢量 2` / `Artboard 1（推断）`
-- 基础矢量解析：`解析完成`，来源 `AI 私有数据`
-- Tokens：80；白名单操作符：12；矢量对象：2；未识别操作符：0；画板候选：1
-- 对象类型：矩形 ×1（CMYK 填充）、线段 ×1（RGB 描边，2pt）
-- 画板：`MediaBox` 推断 `595 × 842 pt`，置信度 low，明确提示非原生画板
-- 兼容性：PostScript / 基础绘图解析 `部分支持`；基础矢量对象提取 `部分支持`；画板信息 `部分支持`
-- 浏览器控制台：**0 个错误**
-
-### 4.4 合成样本结果
-
-| 样本 | 来源 | Tokens | 矢量 | 画板 | 未知操作符 |
-|---|---|---|---|---|---|
-| `synthetic-ai12-pdf.bin` | AI 私有数据 | 80 | 2（矩形、线段） | MediaBox 595×842 | 0 |
-| `synthetic-legacy-ps.bin` | PostScript 绘图段 | 24 | 2（矩形、线段） | BoundingBox 595×842 | `showpage` |
-| `synthetic-ai9-eps.bin` | AI 私有数据 | 18 | 1（矩形） | BoundingBox 300×200 | 0 |
-| `synthetic-truncated-pdf.bin` | — | 0 | 0 | 0 | — |
+- 摘要：`PDF` / `high confidence` / `AI24 私有标记` / `PDF 1.6` / `部分支持` / `矢量 841` / `原生画板 1`
+- 应用版本 `29.3.0`；声明图层 / 画板 `1 / 1`
+- 私有数据：`zstd`，`8 / 8` 分块，PDF 对象 11
+- 画板卡片：「画板 1」`0, -700 / 1250 × 700 pt`
+- 内容边界：BoundingBox / HiResBoundingBox
+- 矢量示例：渐变填充、自定义颜色、Gray
+- 未识别操作符：0
+- 控制台：0 错误、0 警告
 
 ---
 
 ## 5. 兼容性结论
 
-- 标准 PostScript 绘图子集在合成样本上工作正常。
-- 画板信息仅来自页面边界推断，不能称为“已识别 Illustrator 画板”。
-- PGF 原生图层语义：**未实现**。
-- Scene Graph / Canvas 渲染：**未实现**。
-- 真实 Illustrator 样本：**未验证**，因此所有图形能力保持 `PARTIAL`。
+- 已用 1 个真实 AI24 样本验证：分块 zstd、AI 私有操作符、路径、画板。
+- 渐变/专色只标记类型，**没有猜测颜色值**；Canvas 阶段必须实现后再渲染。
+- 其他 Illustrator 版本（AI 8 / 10 / CS / CS6 / 2022+）尚未验证。
+- 总体等级保持 `PARTIAL`，不因单一样本升级为 `FULL`。
 
 ---
 
 ## 6. 已知问题与风险
 
-1. **真实样本缺失**（最高优先级）：AI 私有操作符可能大量不在白名单中；当前 0 个未知操作符仅代表合成样本。
-2. **画板数据**：真实 AI 画板可能位于私有数据中，MediaBox 不等于画板。
-3. **分组层级丢失**：阶段 2 输出扁平对象列表，无法表达组变换与顺序语义。
-4. **裁剪未生效**：裁剪路径只记录，渲染阶段必须补齐，否则会错误显示超出裁剪区的内容。
-5. **文字/图片未处理**：包含文字或置入图的设计稿会缺少内容，必须在兼容性报告中明确提示。
-6. **渐变/透明度/专色**：尚未建模。
-7. **矩阵与坐标**：AI 私有数据可能使用非标准坐标系；真实样本到位后需校准 Y 轴与画板原点。
-8. **包围盒近似**：三次曲线使用控制点包围盒。
-9. **主线程解析**：大文件仍可能阻塞 UI，阶段 6 移入 Worker。
+1. 只有一个真实样本，操作符集合与布局仍需更多版本验证。
+2. 渐变颜色表、停靠点、专色语义未解析。
+3. 文字、图片、裁剪、透明度、画笔/图案未渲染。
+4. 图层/组只记录深度，尚未恢复完整层级关系。
+5. 画板坐标 Y 轴向下转换将在阶段 4 统一处理。
+6. 三次曲线包围盒为控制点近似。
+7. AI24 zstd 使用 JS 解压；WASM 与 Worker 待后续阶段。
+8. 真实样本默认不进入 Git，CI 环境下集成测试会跳过。
 
 ---
 
@@ -149,8 +143,8 @@ dist/assets/index-*.js   149.69 kB │ gzip: 53.16 kB
 
 - Scene Graph（Document / Artboard / Group / Shape / Transform）
 - CanvasRenderer、DPR、缩放、平移、多画板切换
-- 裁剪、渐变、透明度、复合形状、图案、专色
-- 文字轮廓与可编辑文字、嵌入图片
+- 渐变、透明度、裁剪、复合形状、图案、专色的实际渲染
+- 文字轮廓 / 可编辑文字、嵌入图片
 - WebAssembly、Worker、任务取消协议
 - Playwright 图像对比、Firefox / WebKit 测试
 
@@ -158,12 +152,12 @@ dist/assets/index-*.js   149.69 kB │ gzip: 53.16 kB
 
 ## 8. 下一阶段任务
 
-1. **收集真实 AI 样本**（阻塞项）：AI 8 / 10 / CS6 / CC 2020+ / 多画板 / 文字 / 图片 / 损坏文件。
-2. 用 `npm run inspect -- <file> --write` 登记解析报告。
-3. 根据真实操作符分布扩展白名单与诊断。
-4. 建立 `src/scene/` 数据模型：Document、Artboard、Group、Shape、Path、Transform、Fill、Stroke。
-5. 将扁平矢量对象组织为层级 Scene Graph，保留分组顺序与变换。
-6. 为画板、裁剪、未知效果建立明确的兼容性状态。
+1. 继续收集真实样本：AI 8 / 10 / CS6 / CC 2022+ / 多画板 / 文字 / 渐变复杂文件。
+2. 用 `npm run inspect -- <file> --write` 登记结构报告。
+3. 建立 Scene Graph 数据模型，把扁平矢量对象组织为 Document → Artboard → Group → Path。
+4. 把图层、组、复合路径标记转换为真实层级。
+5. 为渐变、裁剪、文字、图片建立明确的数据结构与兼容性状态。
+6. 为阶段 4 Canvas 渲染准备稳定的输入契约。
 
 ---
 
@@ -176,4 +170,8 @@ npm run build
 npm run dev
 ```
 
-浏览器打开终端输出地址，点击“加载合成样本”，即可查看阶段 2 的结构检测与基础矢量提取结果。
+真实样本放入 `tests/fixtures/real/` 后：
+
+```bash
+npm run inspect -- tests/fixtures/real/lengdong-logo.ai --write
+```
