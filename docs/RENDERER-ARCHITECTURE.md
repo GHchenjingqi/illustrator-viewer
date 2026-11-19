@@ -1,56 +1,63 @@
-# 渲染器架构（阶段 4 计划）
+# 渲染器架构
 
-> **状态：未实现。** 本文件只记录设计约束，不代表当前具备任何渲染能力。
-> 阶段 1 的 `capabilities.canvasRendering` 固定为 `false`。
+> **状态：阶段 4 已实现（部分颜色近似）。** 渐变/专色使用近似纯色，嵌入图片/裁剪/透明度/文字尚未渲染。
 
-## 目标
+## 实现模块
 
-- 原生 Canvas 2D 矢量绘制，不依赖 PDF.js / SVG 转栅格 / 预览图。
-- 渲染器只消费 Scene Graph，不接触解析细节。
-- 设备像素比（DPR）适配、缩放/平移、多画板切换、资源释放。
-- 明确区分“完整支持 / 部分支持 / 暂不支持”，不错误绘制。
-
-## 计划模块
-
-| 模块 | 职责 |
-|---|---|
-| `CanvasRenderer.js` | 画布生命周期、DPR、视口、渲染调度、资源清理 |
-| `PathRenderer.js` | MoveTo / LineTo / CubicBezier / ClosePath → `Path2D` 或 Canvas 路径 |
-| `ShapeRenderer.js` | 矩形、椭圆、多边形、复合路径、填充、描边、透明度 |
-| `TextRenderer.js` | 轮廓文字优先；可编辑文字作为后续兼容项 |
-| `TransformEngine.js` | AI 坐标 ↔ Scene Graph ↔ Canvas ↔ 屏幕坐标；矩阵合成 |
-| `ColorEngine.js` | RGB / CMYK / 灰度 / 专色的近似与诊断 |
+| 模块 | 文件 | 职责 |
+|---|---|---|
+| `CanvasRenderer` | `src/renderer/CanvasRenderer.js` | 画布生命周期、DPR、视口、画板裁剪、节点绘制 |
+| `PathRenderer` | `src/renderer/PathRenderer.js` | Path2D 构建、矩阵应用、复合路径 |
+| `ColorEngine` | `src/engine/ColorEngine.js` | RGB/Gray/CMYK → CSS；近似色 |
+| `ScenePreview.vue` | `src/components/ScenePreview.vue` | 预览 UI、缩放/平移/适应/1:1/全屏/画板切换 |
 
 ## 坐标系
 
 ```
-AI 原始坐标（Y 向上，point）
-        │ 翻转 + 画板平移
+AI / Scene Graph 坐标（Y 向上，pt）
+        │ 画板平移 + Y 翻转 + 适应缩放
         ▼
-Scene Graph 坐标（文档坐标）
-        │ 视口变换（zoom / pan）
-        ▼
-Canvas 坐标（CSS px）
+Canvas CSS 坐标（px）
         │ DPR 缩放
         ▼
 设备像素
 ```
 
-必须在真实文件上验证画板原点与 Y 轴方向后再实现，避免“看起来居中但实际偏移”。
+`computeViewport` 纯函数负责缩放与原点；`worldToScreen` / `screenToWorld` 用于鼠标缩放锚点与后续命中测试。
 
-## 渲染原则
+## 渲染流程
 
-1. 矢量路径在解析阶段不栅格化。
-2. `ctx.setTransform` 与 `Path2D` 组合，保持高倍缩放清晰度。
-3. 单个画布的像素总量设上限；超大画板按视口裁剪或分块。
-4. 未知效果不猜测：跳过并记录诊断，UI 明确提示。
-5. 渲染前后测量耗时、路径数量与内存；阶段 7 建立图像对比测试。
+1. 读取字号与 DPR，调整 Canvas 像素尺寸。
+2. 计算适应窗口的缩放与居中偏移。
+3. 绘制白色画板背景与阴影；裁剪到画板。
+4. 应用视口矩阵（`translate → scale(eff, -eff) → translate(-x, -(y+h))`）。
+5. 递归绘制 Scene Graph：组变换、复合路径合并、Shape 填充/描边。
+6. 恢复视口，绘制画板边框。
 
-## 验收草案（阶段 4）
+## 变换策略
 
-- [ ] 基础线条、矩形、贝塞尔路径无可见偏移。
-- [ ] 填充 / 描边 / 透明度 / 分组顺序正确。
-- [ ] 画板比例正确，Y 轴方向正确。
-- [ ] 高 DPR 屏幕清晰，缩放后仍为矢量。
-- [ ] 多画板切换与“适应窗口 / 原始尺寸”可用。
-- [ ] 未支持对象有 UI 提示，不显示错误图形。
+- SceneBuilder 已将绝对 CTM 转换为 **父组内相对变换**。
+- 渲染时 `ctx.transform(parent)` 后 `ctx.transform(child)`，与行向量矩阵组合一致。
+- 复合路径在组合时应用子图形相对变换，合并成一个 Path2D 后一次填充。
+
+## 部分预览策略
+
+- 渐变/专色：使用 `approxColor`，标记 `approximate`，界面显示“部分预览”。
+- 嵌入图片、裁剪、透明度、文字：不绘制，并在预览面板列出。
+- 非打印图形：跳过。
+- 不使用 PDF 预览图替代。
+
+## 已知限制
+
+1. 未解析渐变颜色表和停靠点，不能绘制真实渐变。
+2. `Xa` 专色语义未确认，使用近似 RGB。
+3. 裁剪路径未生效。
+4. 透明度组只保留结构，未应用 `globalAlpha`/混合模式。
+5. 文字/图片对象尚未进入 Scene Graph。
+6. 多画板跨画板层级未完整重建。
+7. 尚无 Playwright 像素对比测试。
+
+## 后续
+
+- 阶段 6：渲染组件化（`AiViewer.vue`）、Worker 解析、资源释放。
+- 阶段 7：多浏览器、DPR、缩放极值、图像对比与内存测试。

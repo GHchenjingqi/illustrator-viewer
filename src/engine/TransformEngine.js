@@ -60,3 +60,21 @@ export function matrixToObject(matrix) {
   const [a, b, c, d, e, f] = matrix
   return { a, b, c, d, e, f }
 }
+
+/** 求逆矩阵；不可逆时返回单位矩阵。 */
+export function invertMatrix(matrix) {
+  if (!isMatrix(matrix)) return [...IDENTITY_MATRIX]
+  const [a, b, c, d, e, f] = matrix
+  const determinant = a * d - b * c
+  if (!Number.isFinite(determinant) || Math.abs(determinant) < 1e-12) {
+    return [...IDENTITY_MATRIX]
+  }
+  return [
+    d / determinant,
+    -b / determinant,
+    -c / determinant,
+    a / determinant,
+    (c * f - d * e) / determinant,
+    (b * e - a * f) / determinant,
+  ]
+}

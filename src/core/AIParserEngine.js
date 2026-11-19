@@ -12,6 +12,9 @@ import { AIFileReader, DEFAULT_MAX_FILE_SIZE } from './AIFileReader.js'
 import { detectStructure } from './AIFileDetector.js'
 import { parsePostScript } from './PostScriptParser.js'
 import { extractNativeArtboards } from './AIArtboardExtractor.js'
+import { extractGradientDefinitions } from './AIGradientExtractor.js'
+import { buildScene } from '../scene/SceneBuilder.js'
+import { WasmBridge } from '../wasm/WasmBridge.js'
 import { buildCompatibilityReport } from '../engine/CompatibilityEngine.js'
 import {
   DiagnosticSeverity,
@@ -23,8 +26,8 @@ import { decodeLatin1 } from '../utils/encoding.js'
 
 const now = () => globalThis.performance?.now?.() ?? Date.now()
 
-export const ENGINE_STAGE = 2
-export const ENGINE_VERSION = '0.2.0'
+export const ENGINE_STAGE = 5
+export const ENGINE_VERSION = '0.5.0'
 
 const MAX_GRAPHICS_TEXT_BYTES = 16 * 1024 * 1024
 const POSTSCRIPT_BODY_MARKERS = ['%%EndSetup', '%%EndProlog', '%AI5_BeginLayer', '%%BeginScript']
@@ -59,6 +62,7 @@ function resolveGraphicsSource(bytes, report) {
       drawingStart: start,
       fullTextLength: decodedText.length,
       nativeArtboards: extractNativeArtboards(decodedText),
+      gradients: extractGradientDefinitions(decodedText),
     }
   }
 
@@ -94,7 +98,7 @@ function createEmptyGraphics(status, reason, source = null) {
 
 export class AIParserEngine {
   /**
-   * @param {{ maxFileSize?: number, chunkSize?: number, hash?: boolean }} [options]
+   * @param {{ maxFileSize?: number, chunkSize?: number, hash?: boolean, wasm?: boolean, wasmBytes?: ArrayBuffer | Uint8Array, wasmUrl?: string }} [options]
    */
   constructor(options = {}) {
     this.maxFileSize = options.maxFileSize ?? DEFAULT_MAX_FILE_SIZE
@@ -102,6 +106,11 @@ export class AIParserEngine {
       maxFileSize: this.maxFileSize,
       chunkSize: options.chunkSize,
       hash: options.hash ?? true,
+    })
+    this.wasm = new WasmBridge({
+      enabled: options.wasm !== false,
+      bytes: options.wasmBytes,
+      url: options.wasmUrl,
     })
   }
 
@@ -143,11 +152,17 @@ export class AIParserEngine {
 
       emit({ phase: 'detect', ratio: 0.6, message: '识别文件结构与版本…' })
 
+      const wasmReady = await this.wasm.init()
+      if (!wasmReady && this.wasm.enabled) {
+        // 加载失败不阻断解析，记录诊断即可
+      }
+
       const report = await detectStructure(file.bytes, {
         fileName: file.name ?? options.fileName ?? null,
         sha256: file.sha256,
         signal: options.signal,
         decodePrivateData: options.decodePrivateData ?? true,
+        wasm: wasmReady ? this.wasm : null,
       })
 
       if (file.hashError) {
@@ -161,9 +176,20 @@ export class AIParserEngine {
         )
       }
 
+      if (!wasmReady) {
+        report.diagnostics.push(
+          createDiagnostic(
+            'WASM_FALLBACK',
+            `WASM 未启用或加载失败，使用 JavaScript 路径：${this.wasm.error ?? '未知原因'}`,
+            DiagnosticSeverity.INFO,
+          ),
+        )
+      }
+
       emit({ phase: 'graphics', ratio: 0.8, message: '提取基础矢量对象…' })
 
       let graphics
+      let gradients = new Map()
       if (options.parseGraphics === false) {
         graphics = createEmptyGraphics('skipped', 'graphics-disabled')
       } else {
@@ -178,6 +204,7 @@ export class AIParserEngine {
             ),
           )
         } else {
+          gradients = graphicsSource.gradients ?? new Map()
           try {
             graphics = parsePostScript(graphicsSource.text, {
               mode: graphicsSource.mode,
@@ -260,13 +287,24 @@ export class AIParserEngine {
       report.capabilities.postScriptParsing = graphics.status === 'parsed'
       report.capabilities.vectorExtraction = graphics.vectorCount > 0
       report.capabilities.artboardDetection = graphics.artboards.length > 0
+      report.capabilities.sceneGraph = graphics.status === 'parsed'
+      report.capabilities.canvasRendering = graphics.status === 'parsed'
+      report.scene =
+        graphics.status === 'parsed'
+          ? buildScene(report, { gradients })
+          : null
 
       report.compatibility = buildCompatibilityReport(report)
+      const wasmUsed = report.scan?.backend === 'wasm'
       report.engine = {
         version: ENGINE_VERSION,
         stage: ENGINE_STAGE,
-        javascriptOnly: true,
-        wasmUsed: false,
+        javascriptOnly: !wasmUsed,
+        wasmUsed,
+        wasmAvailable: wasmReady,
+        wasmStatus: this.wasm.getStatus(),
+        scanBackend: report.scan?.backend ?? 'js',
+        boundsBackend: graphics.stats?.boundsBackend ?? 'js',
       }
       report.durationMs = Number((now() - started).toFixed(2))
 

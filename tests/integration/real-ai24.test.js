@@ -4,14 +4,16 @@ import { describe, expect, it } from 'vitest'
 import { AIParserEngine } from '../../src/core/AIParserEngine.js'
 
 const realPath = fileURLToPath(new URL('../fixtures/real/lengdong-logo.ai', import.meta.url))
+const wasmPath = fileURLToPath(new URL('../../public/wasm/ai_viewer_wasm.wasm', import.meta.url))
 const hasRealSample = existsSync(realPath)
+const wasmBytes = existsSync(wasmPath) ? readFileSync(wasmPath) : undefined
 
 describe.skipIf(!hasRealSample)('真实 AI24 样本（本地）', () => {
   it(
     '分块 zstd 解压、真实操作符解析、原生画板提取',
     async () => {
       const bytes = readFileSync(realPath)
-      const engine = new AIParserEngine({ hash: false })
+      const engine = new AIParserEngine({ hash: false, wasmBytes })
       const result = await engine.parse(bytes, { fileName: 'lengdong-logo.ai' })
 
       expect(result.ok).toBe(true)
@@ -48,8 +50,16 @@ describe.skipIf(!hasRealSample)('真实 AI24 样本（本地）', () => {
 
       expect(report.capabilities.postScriptParsing).toBe(true)
       expect(report.capabilities.vectorExtraction).toBe(true)
-      expect(report.capabilities.canvasRendering).toBe(false)
+      expect(report.capabilities.sceneGraph).toBe(true)
+      expect(report.capabilities.canvasRendering).toBe(true)
+      expect(report.scene.stats.shapes).toBe(841)
       expect(report.compatibility.overall).toBe('PARTIAL')
+      if (wasmBytes) {
+        expect(report.engine.wasmAvailable).toBe(true)
+        expect(report.engine.wasmUsed).toBe(true)
+        expect(report.scan.backend).toBe('wasm')
+        expect(report.graphics.stats.wasmBoundsUsed).toBe(0)
+      }
     },
     30000,
   )

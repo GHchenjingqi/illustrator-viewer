@@ -45,6 +45,7 @@ const MAX_PRIVATE_DATA_BYTES = 64 * 1024 * 1024
 const MAX_INFLATE_BYTES = 128 * 1024 * 1024
 const MAX_MARKER_COUNT = 2000
 const DOS_EPS_MAGIC = [0xc5, 0xd0, 0xd3, 0xc6]
+const WASM_SCAN_MIN_BYTES = 256 * 1024
 
 export const MARKER_DEFINITIONS = Object.freeze([
   { id: 'pdfHeader', label: 'PDF 文件头', needle: '%PDF-', group: 'container' },
@@ -119,7 +120,58 @@ function buildScanWindows(size) {
   ]
 }
 
-function scanMarkers(parser, windows) {
+function scanMarkers(parser, windows, wasm) {
+  if (wasm?.ready && parser.length >= WASM_SCAN_MIN_BYTES) {
+    const patternBytes = MARKER_DEFINITIONS.map((definition) =>
+      new TextEncoder().encode(definition.needle),
+    )
+    const aggregated = MARKER_DEFINITIONS.map(() => ({ first: -1, count: 0 }))
+    let succeeded = true
+
+    for (const window of windows) {
+      const result = wasm.scanPatterns(
+        parser.bytes.subarray(window.start, window.end),
+        patternBytes,
+      )
+      if (!result) {
+        succeeded = false
+        break
+      }
+      for (let index = 0; index < aggregated.length; index += 1) {
+        const count = result.counts[index] ?? 0
+        if (count > 0) {
+          aggregated[index].count += count
+          const first = result.first[index]
+          if (first >= 0) {
+            const absolute = window.start + first
+            if (aggregated[index].first < 0 || absolute < aggregated[index].first) {
+              aggregated[index].first = absolute
+            }
+          }
+        }
+      }
+    }
+
+    if (succeeded) {
+      return {
+        backend: 'wasm',
+        markers: MARKER_DEFINITIONS.map((definition, index) => {
+          const entry = aggregated[index]
+          return {
+            id: definition.id,
+            label: definition.label,
+            needle: definition.needle,
+            group: definition.group,
+            present: entry.count > 0,
+            offset: entry.first,
+            count: Math.min(entry.count, MAX_MARKER_COUNT),
+            countCapped: entry.count >= MAX_MARKER_COUNT,
+          }
+        }),
+      }
+    }
+  }
+
   const results = []
   for (const definition of MARKER_DEFINITIONS) {
     let firstOffset = -1
@@ -150,7 +202,7 @@ function scanMarkers(parser, windows) {
       countCapped,
     })
   }
-  return results
+  return { backend: 'js', markers: results }
 }
 
 function toMarkerMap(markers) {
@@ -721,7 +773,8 @@ export async function detectStructure(input, options = {}) {
   }
 
   const windows = buildScanWindows(parser.length)
-  const markers = scanMarkers(parser, windows)
+  const scanResult = scanMarkers(parser, windows, options.wasm)
+  const markers = scanResult.markers
   const markersById = toMarkerMap(markers)
   const textWindows = collectWindowText(parser, windows)
   const aiTags = collectAiTags(textWindows)
@@ -926,6 +979,7 @@ export async function detectStructure(input, options = {}) {
     capabilities,
     diagnostics,
     scan: {
+      backend: scanResult.backend,
       scannedBytes,
       size: parser.length,
       truncated: scanTruncated,

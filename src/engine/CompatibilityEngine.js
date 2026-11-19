@@ -109,8 +109,22 @@ export function buildCompatibilityReport(report) {
       SupportLevel.UNSUPPORTED,
       '阶段 2 仅执行通用 PostScript 子集；图层、画板、文本、图片等原生语义尚未用真实样本验证',
     ),
-    item('Scene Graph 构建', SupportLevel.UNSUPPORTED, '计划于阶段 3 实现'),
-    item('Canvas 矢量渲染', SupportLevel.UNSUPPORTED, '计划于阶段 4 实现'),
+    item(
+      'Scene Graph 构建',
+      report.scene ? SupportLevel.PARTIAL : SupportLevel.UNSUPPORTED,
+      report.scene
+        ? `已构建 ${report.scene.stats.artboards} 个画板 / ${report.scene.stats.layers} 个图层 / ${report.scene.stats.groups} 个组 / ${report.scene.stats.compounds} 个复合路径 / ${report.scene.stats.shapes} 个图形`
+        : '计划于阶段 3 实现',
+    ),
+    item(
+      'Canvas 矢量渲染',
+      report.capabilities?.canvasRendering && report.scene
+        ? SupportLevel.PARTIAL
+        : SupportLevel.UNSUPPORTED,
+      report.capabilities?.canvasRendering && report.scene
+        ? 'Canvas 2D 预览已实现；渐变/专色为近似色，栅格图/裁剪/透明度未渲染'
+        : '计划于阶段 4 实现',
+    ),
     item(
       'PDF 预览图提取',
       SupportLevel.UNSUPPORTED,
@@ -126,13 +140,13 @@ export function buildCompatibilityReport(report) {
   }
 
   return {
-    stage: 2,
+    stage: 5,
     overall,
     overallLabel: LEVEL_LABELS[overall],
     note:
       overall === SupportLevel.PARTIAL
-        ? '阶段 2 已用 1 个真实 AI24 样本校准私有数据解压、基础路径与原生画板；仍未实现 Scene Graph / Canvas 渲染，且需要更多版本样本。'
-        : '当前文件未通过阶段 2 解析，详情见诊断信息。',
+        ? '阶段 5 已实现解析、Scene Graph、Canvas 预览与 WASM 扫描；渐变/专色为近似色，仍需更多真实版本样本。'
+        : '当前文件未通过阶段 5 解析，详情见诊断信息。',
     items,
   }
 }

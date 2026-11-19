@@ -10,8 +10,9 @@
  * 该工具只读取文件，不修改源文件。
  */
 
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { AIParserEngine } from '../src/core/AIParserEngine.js'
 
 const args = process.argv.slice(2)
@@ -32,7 +33,9 @@ if (!target) {
   }
 
   if (bytes) {
-    const engine = new AIParserEngine()
+    const wasmPath = fileURLToPath(new URL('../public/wasm/ai_viewer_wasm.wasm', import.meta.url))
+    const wasmBytes = existsSync(wasmPath) ? readFileSync(wasmPath) : undefined
+    const engine = new AIParserEngine({ wasmBytes })
     const result = await engine.parse(new Uint8Array(bytes), { fileName: basename(path) })
 
     if (!result.ok) {

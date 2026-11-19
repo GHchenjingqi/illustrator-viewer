@@ -20,7 +20,7 @@ describe('AIParserEngine', () => {
     expect(result.report.file.name).toBe('sample.bin')
     expect(result.report.file.sha256).toHaveLength(64)
     expect(result.report.compatibility.overall).toBe('PARTIAL')
-    expect(result.report.engine).toMatchObject({ stage: 2, javascriptOnly: true, wasmUsed: false })
+    expect(result.report.engine).toMatchObject({ stage: 5, javascriptOnly: true, wasmUsed: false })
     expect(result.report.durationMs).toBeGreaterThanOrEqual(0)
 
     const graphics = result.report.graphics
@@ -35,8 +35,12 @@ describe('AIParserEngine', () => {
     expect(result.report.capabilities.postScriptParsing).toBe(true)
     expect(result.report.capabilities.vectorExtraction).toBe(true)
     expect(result.report.capabilities.pgfParsing).toBe(false)
-    expect(result.report.capabilities.sceneGraph).toBe(false)
-    expect(result.report.capabilities.canvasRendering).toBe(false)
+    expect(result.report.capabilities.sceneGraph).toBe(true)
+    expect(result.report.capabilities.canvasRendering).toBe(true)
+
+    expect(result.report.scene).not.toBeNull()
+    expect(result.report.scene.stats.shapes).toBeGreaterThan(0)
+    expect(result.report.scene.artboards.length).toBeGreaterThan(0)
 
     // 瞬态解码文本不得泄漏给 UI
     expect('text' in result.report.privateData).toBe(false)
@@ -59,6 +63,7 @@ describe('AIParserEngine', () => {
     expect(result.report.graphics.status).toBe('skipped')
     expect(result.report.graphics.vectorCount).toBe(0)
     expect(result.report.capabilities.vectorExtraction).toBe(false)
+    expect(result.report.scene).toBeNull()
   })
 
   it('未知文件返回结构化报告而不崩溃', async () => {
@@ -68,6 +73,7 @@ describe('AIParserEngine', () => {
     expect(result.report.detection.container).toBe('unknown')
     expect(result.report.compatibility.overall).toBe('INVALID')
     expect(result.report.graphics.status).toBe('skipped')
+    expect(result.report.scene).toBeNull()
   })
 
   it('空文件返回结构化错误', async () => {

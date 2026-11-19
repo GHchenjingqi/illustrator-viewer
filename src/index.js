@@ -45,6 +45,13 @@ export {
 export { buildCompatibilityReport, SupportLevel } from './engine/CompatibilityEngine.js'
 export { extractAi24Zstd } from './core/AI24Extractor.js'
 export { extractNativeArtboards } from './core/AIArtboardExtractor.js'
+export { extractGradientDefinitions } from './core/AIGradientExtractor.js'
+export { buildScene, cmykToRgb } from './scene/SceneBuilder.js'
+export { CanvasRenderer, computeViewport, screenToWorld, worldToScreen } from './renderer/CanvasRenderer.js'
+export { buildPath2D, buildCompoundPath2D } from './renderer/PathRenderer.js'
+export { resolvePaintColor } from './engine/ColorEngine.js'
+export { WasmBridge } from './wasm/WasmBridge.js'
+export { loadWasmModule, clearWasmCache } from './wasm/WasmLoader.js'
 export { decompressZstd } from './utils/zstd.js'
 export { decodeLatin1, decodeMaybeUtf8 } from './utils/encoding.js'
 export {

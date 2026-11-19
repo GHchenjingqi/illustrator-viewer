@@ -135,7 +135,10 @@ export class PostScriptParser {
     this.stack = []
     this.stateStack = []
     this.graphics = new PostScriptGraphicsState()
-    this.builder = new VectorBuilder({ maxObjects: this.options.maxObjects })
+    this.builder = new VectorBuilder({
+      maxObjects: this.options.maxObjects,
+      boundsComputer: this.options.boundsComputer,
+    })
     this.subpaths = []
     this.currentSubpath = null
     this.currentPoint = null
@@ -148,6 +151,8 @@ export class PostScriptParser {
     this.compoundDepth = 0
     this.windingRule = 'nonzero'
     this.currentLayerName = null
+    this.lastLayerEventIndex = -1
+    this.sceneEvents = []
     this.unknownOperators = new Map()
     this.featureCounts = new Map()
     this.diagnostics = []
@@ -216,10 +221,16 @@ export class PostScriptParser {
       artboards,
       contentBounds,
       artboardHintCount: artboardHints.length,
+      sceneEvents: this.sceneEvents,
       unknownOperators: this.collectUnknownOperators(),
       unsupportedFeatures: this.collectFeatures(),
       diagnostics: this.diagnostics,
-      stats: { ...this.stats },
+      stats: {
+        ...this.stats,
+        wasmBoundsUsed: this.builder.wasmBoundsUsed,
+        jsBoundsUsed: this.builder.jsBoundsUsed,
+        boundsBackend: this.builder.wasmBoundsUsed > 0 ? 'wasm' : 'js',
+      },
     }
   }
 
@@ -431,6 +442,17 @@ export class PostScriptParser {
       return
     }
     this.featureCounts.set(key, { feature: key, detail, count: 1 })
+  }
+
+  recordSceneEvent(type, extra = {}) {
+    const event = {
+      type,
+      vectorIndex: this.builder.objects.length,
+      transform: [...this.graphics.ctm],
+      ...extra,
+    }
+    this.sceneEvents.push(event)
+    return event
   }
 
   collectFeatures() {
@@ -714,28 +736,39 @@ export class PostScriptParser {
       case 'Lb':
         this.stack.length = 0
         this.stats.layers += 1
+        this.lastLayerEventIndex = this.sceneEvents.length
+        this.recordSceneEvent('layer-begin', { name: null })
         this.recordFeature('layer', 'AI 图层边界')
         break
       case 'Ln': {
         const name = this.pop()
-        if (typeof name === 'string') this.currentLayerName = decodeMaybeUtf8(name)
+        if (typeof name === 'string') {
+          this.currentLayerName = decodeMaybeUtf8(name)
+          const event = this.sceneEvents[this.lastLayerEventIndex]
+          if (event?.type === 'layer-begin') event.name = this.currentLayerName
+        }
         break
       }
       case 'LB':
+        this.recordSceneEvent('layer-end')
         this.recordFeature('layer', 'AI 图层结束')
         break
       case 'u':
         this.groupDepth += 1
         this.stats.groups += 1
+        this.recordSceneEvent('group-begin')
         break
       case 'U':
+        this.recordSceneEvent('group-end')
         this.groupDepth = Math.max(0, this.groupDepth - 1)
         break
       case '*u':
         this.compoundDepth += 1
         this.stats.compoundPaths += 1
+        this.recordSceneEvent('compound-begin')
         break
       case '*U':
+        this.recordSceneEvent('compound-end')
         this.compoundDepth = Math.max(0, this.compoundDepth - 1)
         break
       case 'Np':
@@ -1192,7 +1225,7 @@ export class PostScriptParser {
 /**
  * 便捷入口。
  * @param {string} source
- * @param {{ mode?: string, source?: string, artboardHints?: object[], container?: string, maxTokens?: number }} [options]
+ * @param {{ mode?: string, source?: string, artboardHints?: object[], container?: string, maxTokens?: number, boundsComputer?: Function }} [options]
  */
 export function parsePostScript(source, options = {}) {
   return new PostScriptParser(options).parse(source, options)

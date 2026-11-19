@@ -1,7 +1,7 @@
 # 兼容性报告
 
 > 更新日期：2026-11-19
-> 当前阶段：2（基础解析引擎）
+> 当前阶段：5（解析 + Scene Graph + Canvas + WASM）
 > 真实样本：1 个 AI24（Illustrator 29.3 导出）已通过结构与基础矢量解析验证。
 > **仍不对其他 Illustrator 版本作出兼容性承诺。**
 
@@ -31,8 +31,9 @@
 | 渐变 / 专色 | `PARTIAL`* | `PARTIAL`* | `PARTIAL`* | **只标记类型，不解析颜色值/停靠点，不渲染** |
 | 原生画板 | `PARTIAL`* | `PARTIAL`* | `PARTIAL`* | AI DocumentData ArtboardArray；1 个真实样本验证 |
 | 文字 / 图片 / 裁剪渲染 | `UNSUPPORTED` | `UNSUPPORTED` | `UNSUPPORTED` | 只记录，不绘制 |
-| Scene Graph | `UNSUPPORTED` | `UNSUPPORTED` | `UNSUPPORTED` | 阶段 3 |
-| Canvas 渲染 | `UNSUPPORTED` | `UNSUPPORTED` | `UNSUPPORTED` | 阶段 4 |
+| Scene Graph | `PARTIAL`* | `PARTIAL`* | `PARTIAL`* | 图层/组/复合路径/画板；多画板层级待完善 |
+| Canvas 渲染 | `PARTIAL`* | `PARTIAL`* | `PARTIAL`* | 路径/颜色/缩放/平移；渐变/专色为近似色 |
+| WASM 扫描加速 | `PARTIAL`* | `PARTIAL`* | `PARTIAL`* | 标记扫描约 1.8×；JS 回退 |
 | PDF 预览图提取 | `UNSUPPORTED` | — | — | 按需求明确不采用 |
 
 \* 仅代表已有实现与（部分）真实样本证据，不代表所有版本完整兼容。
@@ -48,8 +49,11 @@
 - 65,114 tokens / 12,496 个白名单操作符 / **0 未知操作符**。
 - 540 个渐变填充标记、252 个自定义颜色、48 个 Gray、1 个无填充。
 - 图层 1 个、组 27 个、复合路径 39 个。
+- Scene Graph：1 画板 / 2 图层 / 27 组 / 39 复合路径 / 841 图形。
+- Canvas：841 图形已绘制；792 个渐变/专色使用近似色，界面明确提示。
+- WASM：标记扫描 `scan.backend = wasm`；JavaScript 回退可用。
 - 嵌入栅格图 2 个，二进制块 6.3 MB 已跳过。
-- 浏览器解析耗时约 360 ms。
+- 浏览器解析 + 构建 Scene Graph 约 350 ms。
 
 真实样本默认被 `.gitignore` 排除，避免商业素材进入仓库；本地集成测试见 `tests/integration/real-ai24.test.js`。
 
@@ -64,19 +68,19 @@
 | `synthetic-ai9-eps.bin` | EPS + AI9 ASCII85/zlib | 375 B | `fb8e940e9698a87dcfe0b8dabfa0a858538109d1c7a79d146534a54d96f7b9ee` | AI9 解码 + 1 个矩形 + BoundingBox |
 | `synthetic-truncated-pdf.bin` | 截断 PDF | 69 B | `3e8b6dfc327803823654001320aa7ee5c0f5b4f951cbaa067400d41e921921e7` | `TRUNCATED_FILE` 诊断、不崩溃 |
 
-自动化验证：`npm test`（10 个文件 / 80 项通过；真实样本缺失时集成测试自动跳过）。
+自动化验证：`npm test`（13 个文件 / 95 项通过；真实样本缺失时集成测试自动跳过）。
 
 ## 5. 已知限制
 
 1. 仅有 1 个 AI24 真实样本；AI 8 / 10 / CS / CS6 / 其他 CC 版本尚未验证。
-2. 渐变只标记为 `gradient`，尚未解析颜色表与停靠点，**不能用黑色替代渲染**。
-3. `Xa` / `XA` 只保留原始 7 个分量，颜色空间与专色语义待确认。
+2. 渐变只标记为 `gradient`，尚未解析颜色表与停靠点；预览使用近似纯色，界面明确提示。
+3. `Xa` / `XA` 只保留原始 7 个分量，颜色空间与专色语义待确认；预览使用近似 RGB。
 4. 文字、嵌入图片、画笔/图案、裁剪、透明度尚未渲染。
-5. 图层与分组只记录深度/标记，尚未恢复完整对象关系。
+5. 多画板的跨画板层级尚未完整重建；单画板使用事件层级。
 6. 三次曲线包围盒为控制点近似。
-7. AI24 zstd 使用 fzstd（JS）解码；WASM 路径待阶段 5。
+7. AI24 zstd 使用 fzstd（JS）解码；WASM 扫描已启用，WASM zstd 待后续。
 8. 大文件解析仍在主线程（阶段 6 移入 Worker）。
-9. 画板坐标来自 DocumentData，Y 轴与 Canvas 的差异将在阶段 4 统一处理。
+9. 画板坐标来自 DocumentData，Y 轴在渲染器中翻转处理。
 
 ## 6. 诚实性约束
 

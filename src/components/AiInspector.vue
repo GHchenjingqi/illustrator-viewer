@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { AIParserEngine } from '../core/AIParserEngine.js'
+import ScenePreview from './ScenePreview.vue'
 import { formatBytes, formatOffset, formatPercent, truncateMiddle } from '../utils/format.js'
 
 const engine = new AIParserEngine()
@@ -24,18 +25,18 @@ const CAPABILITY_DEFS = [
   { key: 'vectorExtraction', label: '基础矢量提取', note: '阶段 2：路径 / 颜色 / 线型' },
   { key: 'artboardDetection', label: '画板边界识别', note: '阶段 2：仅边界推断' },
   { key: 'pgfParsing', label: 'PGF 原生图层解析', note: '实验性，未真实样本验证' },
-  { key: 'sceneGraph', label: 'Scene Graph 构建', note: '阶段 3 计划' },
-  { key: 'canvasRendering', label: 'Canvas 矢量渲染', note: '阶段 4 计划' },
+  { key: 'sceneGraph', label: 'Scene Graph 构建', note: '阶段 3：图层/组/复合路径' },
+  { key: 'canvasRendering', label: 'Canvas 矢量渲染', note: '阶段 4：渐变使用近似色' },
   { key: 'pdfPreviewImageExtraction', label: 'PDF 预览图提取', note: '明确不采用' },
 ]
 
 const ROADMAP = [
   { n: 1, title: '初始化与格式研究', desc: '结构检测 / 版本识别 / 二进制读取', state: 'done' },
-  { n: 2, title: '基础解析引擎', desc: 'PostScript 解析 / 路径 / 颜色 / 画板边界', state: 'current' },
-  { n: 3, title: 'Scene Graph', desc: '统一图形数据模型', state: 'next' },
-  { n: 4, title: 'Canvas Renderer', desc: '矢量绘制 / DPR 适配', state: 'todo' },
-  { n: 5, title: 'WebAssembly', desc: '扫描与数值计算加速', state: 'todo' },
-  { n: 6, title: 'Worker 与组件', desc: '后台解析 / AiViewer.vue', state: 'todo' },
+  { n: 2, title: '基础解析引擎', desc: 'PostScript / AI 私有操作符 / zstd', state: 'done' },
+  { n: 3, title: 'Scene Graph', desc: '图层 / 组 / 复合路径 / 画板', state: 'done' },
+  { n: 4, title: 'Canvas Renderer', desc: '矢量预览 / 缩放平移 / 部分颜色', state: 'done' },
+  { n: 5, title: 'WebAssembly', desc: '多模式扫描加速 / JS 回退', state: 'done' },
+  { n: 6, title: 'Worker 与组件', desc: '后台解析 / AiViewer.vue', state: 'next' },
   { n: 7, title: '兼容性与性能', desc: '多版本 / 多浏览器测试', state: 'todo' },
 ]
 
@@ -348,9 +349,9 @@ onBeforeUnmount(() => {
         <div>
           <div class="brand-title">
             AI Viewer Engine
-            <span class="stage-badge">STAGE 2 / 7</span>
+            <span class="stage-badge">STAGE 5 / 7</span>
           </div>
-          <div class="brand-sub">Illustrator .ai 结构检测 + 基础矢量提取 · 纯浏览器本地运行</div>
+          <div class="brand-sub">Illustrator .ai 解析 · Scene Graph · Canvas 预览 · WASM</div>
         </div>
       </div>
 
@@ -454,6 +455,8 @@ onBeforeUnmount(() => {
                 {{ report.graphics.artboardSource === 'native-artboard' ? '原生画板' : 'Artboard' }}
                 {{ report.graphics.artboards.length }}
               </span>
+              <span v-if="report.scene" class="chip accent">场景 {{ report.scene.stats.shapes }} 图形</span>
+              <span v-if="report.engine?.wasmUsed" class="chip accent">WASM 扫描</span>
             </div>
           </div>
           <div class="summary-metrics">
@@ -485,6 +488,8 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </section>
+
+        <ScenePreview v-if="report.scene" :scene="report.scene" :report="report" />
 
         <div class="grid">
           <section class="panel">
@@ -932,7 +937,7 @@ onBeforeUnmount(() => {
           <h1>在浏览器里读懂 <span>.ai</span> 的内部结构</h1>
           <p class="lede">
             自主实现的 Illustrator 解析链路：二进制读取 → 容器识别 → 私有数据解压 →
-            基础 PostScript 绘图解析。阶段 2 已能提取路径、颜色与线型；图形渲染将在阶段 4 接入。
+            Scene Graph → Canvas 预览。阶段 5 已加入 WASM 扫描加速；渐变/专色使用明确标注的近似色。
           </p>
 
           <div
@@ -979,10 +984,10 @@ onBeforeUnmount(() => {
           </article>
           <article class="panel feature">
             <span class="feature-index">03</span>
-            <h2>阶段 2：基础解析</h2>
+            <h2>阶段 3–5：预览与加速</h2>
             <p>
-              已实现白名单 PostScript 操作符、路径 / 颜色 / 线型提取与结构化 JSON；尚未用真实 AI
-              样本校准，因此只标记为部分支持。
+              已建立 Scene Graph、原生 Canvas 渲染与缩放/平移交互，并加入自研 Rust/WASM
+              多模式扫描；WASM 失败时自动回退 JavaScript。
             </p>
           </article>
         </section>
@@ -990,7 +995,7 @@ onBeforeUnmount(() => {
         <section class="panel roadmap">
           <div class="panel-head">
             <h2 class="panel-title">开发路线</h2>
-            <span class="muted small">阶段 2 进行中</span>
+            <span class="muted small">阶段 6 下一步</span>
           </div>
           <ol class="roadmap-list">
             <li v-for="stage in ROADMAP" :key="stage.n" :class="stage.state">
@@ -1009,7 +1014,7 @@ onBeforeUnmount(() => {
     </main>
 
     <footer class="footer">
-      <span>AI Viewer Engine v0.2.0 · Stage 2 基础解析 · JavaScript 链路可独立运行</span>
+      <span>AI Viewer Engine v0.5.0 · Stage 5 · JS 解析 + Canvas + WASM</span>
       <span class="footer-sep">·</span>
       <span>WASM 仅作为后续加速项，不是运行前提</span>
     </footer>

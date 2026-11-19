@@ -65,10 +65,46 @@ function cloneSubpath(subpath) {
 }
 
 /**
+ * 收集包围盒所需的点（含贝塞尔控制点），用于 WASM 批量计算。
+ */
+export function collectBoundsPoints(subpaths) {
+  const coordinates = []
+  let hasCurve = false
+  for (const subpath of subpaths) {
+    for (const segment of subpath.segments) {
+      if (segment.type === 'C') {
+        hasCurve = true
+        coordinates.push(segment.x1, segment.y1, segment.x2, segment.y2)
+      }
+      coordinates.push(segment.x, segment.y)
+    }
+  }
+  return { points: new Float64Array(coordinates), approximate: hasCurve }
+}
+
+/**
  * 基于控制点计算包围盒（三次曲线的真实极值可能更小）。
  * 返回的 boundsApproximate 会标记这一点。
+ *
+ * @param {Array} subpaths
+ * @param {number[]} transform
+ * @param {{ boundsComputer?: (points: Float64Array, matrix: number[]) => { x:number, y:number, width:number, height:number } | null }} [options]
  */
-export function computeBounds(subpaths, transform) {
+export function computeBounds(subpaths, transform, options = {}) {
+  if (typeof options.boundsComputer === 'function') {
+    const collected = collectBoundsPoints(subpaths)
+    if (collected.points.length >= 2) {
+      const accelerated = options.boundsComputer(collected.points, transform)
+      if (accelerated) {
+        return {
+          bounds: accelerated,
+          approximate: collected.approximate,
+          backend: 'wasm',
+        }
+      }
+    }
+  }
+
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
@@ -108,6 +144,7 @@ export function computeBounds(subpaths, transform) {
       height: maxY - minY,
     },
     approximate: hasCurve,
+    backend: 'js',
   }
 }
 
@@ -158,13 +195,16 @@ function classifyPath(subpaths) {
 
 export class VectorBuilder {
   /**
-   * @param {{ maxObjects?: number }} [options]
+   * @param {{ maxObjects?: number, boundsComputer?: Function }} [options]
    */
   constructor(options = {}) {
     this.maxObjects = options.maxObjects ?? 50000
+    this.boundsComputer = options.boundsComputer ?? null
     this.objects = []
     this.truncated = false
     this.sequence = 0
+    this.wasmBoundsUsed = 0
+    this.jsBoundsUsed = 0
   }
 
   /**
@@ -196,7 +236,11 @@ export class VectorBuilder {
 
     const transform = input.transform?.slice(0, 6) ?? [1, 0, 0, 1, 0, 0]
     const classification = classifyPath(subpaths)
-    const boundsResult = computeBounds(subpaths, transform)
+    const boundsResult = computeBounds(subpaths, transform, {
+      boundsComputer: this.boundsComputer,
+    })
+    if (boundsResult?.backend === 'wasm') this.wasmBoundsUsed += 1
+    else if (boundsResult) this.jsBoundsUsed += 1
     const fill = normalizePaint(input.fill)
     const stroke = normalizePaint(input.stroke)
 
@@ -222,6 +266,7 @@ export class VectorBuilder {
       transform,
       bounds: boundsResult?.bounds ?? null,
       boundsApproximate: boundsResult?.approximate ?? false,
+      boundsBackend: boundsResult?.backend ?? 'js',
       nonPrinting: Boolean(input.nonPrinting),
       compound: Boolean(input.compound),
       groupDepth: Number.isInteger(input.groupDepth) ? input.groupDepth : 0,

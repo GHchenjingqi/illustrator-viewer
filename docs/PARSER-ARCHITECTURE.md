@@ -1,6 +1,6 @@
 # 解析器架构
 
-> 当前实现阶段：**2（基础解析引擎）**。
+> 当前实现阶段：**5（解析 + Scene Graph + Canvas + WASM）**。
 > 未实现部分不会在代码、UI 或兼容性报告中被标记为可用。
 
 ## 1. 分层
@@ -48,7 +48,6 @@
 
 阶段 3+：VectorParser + 画板 → Scene Graph → CanvasRenderer
 ```
-
 ## 2. 模块职责
 
 | 模块 | 职责 | 不负责 |
@@ -63,6 +62,10 @@
 | `PostScriptGraphicsState` | CTM、填充/描边颜色、线宽、端点、连接、虚线 | 视口变换 |
 | `VectorParser` | 矩形/线段/路径分类、颜色规范化、包围盒 | 栅格化、分组关系 |
 | `PageBoxExtractor` | BoundingBox / MediaBox / CropBox 提示与画板候选 | 原生 Artboard 语义 |
+| `AIArtboardExtractor` | DocumentData → 原生画板 | 内容边界 |
+| `SceneBuilder` | 扁平矢量 + 事件 → Document/Artboard/Group/Shape | 渲染 |
+| `CanvasRenderer` / `PathRenderer` | Canvas 2D 绘制、视口、DPR、复合路径 | 解析 |
+| `WasmBridge` | 标记扫描 / 包围盒 / 批量变换的 WASM 接口 | 任何解析语义 |
 | `TransformEngine` | 仿射矩阵工具（阶段 2） | 屏幕坐标/视口（阶段 4） |
 | `CompatibilityEngine` | 能力与诊断映射为四级兼容性 | 解析 |
 | `AIParserEngine` | 调度、进度聚合、结构化错误边界 | 具体解析细节 |
@@ -148,23 +151,25 @@ const result = await engine.parse(fileOrBuffer, {
 
 过程体与字典不执行；未知操作符不猜测语义；文字/图片/裁剪记录为未支持；不做任何文件、网络、进程操作。
 
-## 6. 阶段 2 的已知限制
+## 6. 当前已知限制（阶段 3–5）
 
 1. 仅有 1 个真实 AI24 样本；其他版本的操作符集合与布局尚未校准。
 2. AI 私有数据不是严格 PostScript：prolog 存在不闭合数组，因此从 `%AI5_BeginLayer` 开始解析。
-3. 渐变只标记为 `gradient`，颜色表与停靠点未解析；渲染阶段不能使用黑色替代。
-4. `Xa` / `XA` 保留原始 7 个分量，颜色空间尚未确认。
-5. 文字、图片、图案、裁剪、透明度组未解析。
-6. 图层/组/复合路径只记录计数与深度，尚未恢复对象关系。
+3. 渐变只标记为 `gradient`，颜色表与停靠点未解析；Canvas 预览使用近似纯色并明确提示。
+4. `Xa` / `XA` 保留原始 7 个分量，颜色空间尚未确认；预览使用近似 RGB。
+5. 文字、图片、图案、裁剪、透明度组未进入最终渲染。
+6. 多画板的跨画板层级尚未完整重建；单画板使用事件层级。
 7. 三次曲线包围盒基于控制点，属于近似值。
-8. AI24 zstd 使用 fzstd（JS），大文件仍在主线程解压（阶段 5/6 优化）。
+8. AI24 zstd 使用 fzstd（JS）；WASM 用于标记扫描，WASM 包围盒因逐对象拷贝开销未启用。
+9. 大文件解析仍在主线程（阶段 6 移入 Worker）。
 
-## 7. 阶段 3 计划
+## 7. 阶段 6 计划
 
-1. 建立 `Document / Artboard / Group / Shape / Path / Transform / Fill / Stroke` 数据模型。
-2. 将阶段 2 的扁平矢量对象组织为层级 Scene Graph。
-3. 把 `u/U`、`*u/*U`、`Lb/Ln/LB` 转换为组、复合路径与图层。
-4. 为渐变、裁剪、文字、图片建立明确的数据结构（即使暂不渲染也要标记）。
-5. 为阶段 4 提供稳定的渲染输入契约。
+1. 建立 `AIWorker.js`：读取/解析/Scene Graph 在 Worker 中执行。
+2. 消息协议：`PARSE_START` / `PARSE_PROGRESS` / `PARSE_RESULT` / `PARSE_ERROR` / `PARSE_CANCEL`。
+3. Transferable ArrayBuffer，避免大文件复制。
+4. 任务取消与旧任务结果丢弃。
+5. 将 Canvas 预览封装为 `AiViewer.vue`，支持 props/events 独立使用。
+6. 内存释放与 Worker 生命周期管理。
 
-**进入阶段 4 的前提**：至少一个真实 AI 样本可以输出结构稳定的 Scene Graph，并有测试证据。
+**进入阶段 7 的前提**：Worker 后台解析稳定，文件切换不出现旧结果覆盖新结果。
