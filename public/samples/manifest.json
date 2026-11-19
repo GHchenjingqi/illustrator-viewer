@@ -1,0 +1,34 @@
+{
+  "warning": "SYNTHETIC FIXTURES ONLY. 这些文件由 scripts/generate-synthetic-samples.mjs 生成，不是 Illustrator 导出文件，不能作为兼容性证据。",
+  "generatedBy": "scripts/generate-synthetic-samples.mjs",
+  "samples": [
+    {
+      "name": "synthetic-ai12-pdf.bin",
+      "kind": "pdf-ai12",
+      "description": "合成 PDF 容器 + AI12 zlib 私有数据块（仅结构检测演示）",
+      "size": 629,
+      "sha256": "09a982e6469603171e92839edf1440653e6f43c27cd28606fcf10e7c10076454"
+    },
+    {
+      "name": "synthetic-legacy-ps.bin",
+      "kind": "eps-postscript8",
+      "description": "合成 Illustrator 8 风格 PostScript / EPS 文本（仅结构检测演示）",
+      "size": 271,
+      "sha256": "467c926565ac0a7c7e2d982c9731f2c555c96aa3b97bfc00983b76bfe10347ea"
+    },
+    {
+      "name": "synthetic-ai9-eps.bin",
+      "kind": "eps-ai9-ascii85-zlib",
+      "description": "合成 EPS + AI9 ASCII85/zlib 私有数据（仅结构检测演示）",
+      "size": 354,
+      "sha256": "89e56224e39692d1714b57f3b23d19589a3373e23329d0e16d14a553c28ed100"
+    },
+    {
+      "name": "synthetic-truncated-pdf.bin",
+      "kind": "pdf-truncated",
+      "description": "合成截断 PDF（用于验证错误处理，不崩溃）",
+      "size": 69,
+      "sha256": "3e8b6dfc327803823654001320aa7ee5c0f5b4f951cbaa067400d41e921921e7"
+    }
+  ]
+}
