@@ -20,17 +20,19 @@ const CAPABILITY_DEFS = [
   { key: 'structureDetection', label: '文件结构检测', note: '阶段 1 已实现' },
   { key: 'privateDataExtraction', label: 'AI 私有数据定位', note: '阶段 1 已实现' },
   { key: 'privateDataDecode', label: '私有数据解压', note: 'zlib / ASCII85（Zstd 取决于环境）' },
-  { key: 'postScriptParsing', label: 'PostScript 语法解析', note: '阶段 2 计划' },
-  { key: 'pgfParsing', label: 'PGF 私有图形解析', note: '阶段 2 计划' },
+  { key: 'postScriptParsing', label: 'PostScript 基础解析', note: '阶段 2：白名单操作符' },
+  { key: 'vectorExtraction', label: '基础矢量提取', note: '阶段 2：路径 / 颜色 / 线型' },
+  { key: 'artboardDetection', label: '画板边界识别', note: '阶段 2：仅边界推断' },
+  { key: 'pgfParsing', label: 'PGF 原生图层解析', note: '实验性，未真实样本验证' },
   { key: 'sceneGraph', label: 'Scene Graph 构建', note: '阶段 3 计划' },
   { key: 'canvasRendering', label: 'Canvas 矢量渲染', note: '阶段 4 计划' },
   { key: 'pdfPreviewImageExtraction', label: 'PDF 预览图提取', note: '明确不采用' },
 ]
 
 const ROADMAP = [
-  { n: 1, title: '初始化与格式研究', desc: '结构检测 / 版本识别 / 二进制读取', state: 'current' },
-  { n: 2, title: '基础解析引擎', desc: 'PostScript / PGF 数据提取', state: 'next' },
-  { n: 3, title: 'Scene Graph', desc: '统一图形数据模型', state: 'todo' },
+  { n: 1, title: '初始化与格式研究', desc: '结构检测 / 版本识别 / 二进制读取', state: 'done' },
+  { n: 2, title: '基础解析引擎', desc: 'PostScript 解析 / 路径 / 颜色 / 画板边界', state: 'current' },
+  { n: 3, title: 'Scene Graph', desc: '统一图形数据模型', state: 'next' },
   { n: 4, title: 'Canvas Renderer', desc: '矢量绘制 / DPR 适配', state: 'todo' },
   { n: 5, title: 'WebAssembly', desc: '扫描与数值计算加速', state: 'todo' },
   { n: 6, title: 'Worker 与组件', desc: '后台解析 / AiViewer.vue', state: 'todo' },
@@ -38,9 +40,12 @@ const ROADMAP = [
 ]
 
 const statusText = computed(() => {
-  if (busy.value) return progress.value.phase === 'detect' ? '检测结构' : '读取文件'
-  if (error.value) return '检测失败'
-  if (report.value) return '检测完成'
+  if (busy.value) {
+    if (progress.value.phase === 'graphics') return '提取矢量'
+    return progress.value.phase === 'detect' ? '检测结构' : '读取文件'
+  }
+  if (error.value) return '解析失败'
+  if (report.value) return '解析完成'
   return '等待文件'
 })
 
@@ -74,6 +79,59 @@ const structureFlags = computed(() => {
 const aiTags = computed(() => report.value?.structure?.aiTags ?? [])
 
 const jsonText = computed(() => (report.value ? JSON.stringify(report.value, null, 2) : ''))
+
+const graphics = computed(() => report.value?.graphics ?? null)
+
+const graphicsStatusLabel = computed(() => {
+  const status = graphics.value?.status
+  return (
+    {
+      parsed: '解析完成',
+      empty: '无绘图指令',
+      skipped: '已跳过',
+      failed: '解析失败',
+    }[status] ?? '—'
+  )
+})
+
+const graphicsSourceLabel = computed(() => {
+  const source = graphics.value?.source
+  return (
+    {
+      'private-data': 'AI 私有数据',
+      'postscript-body': 'PostScript 绘图段',
+    }[source] ?? '无可用来源'
+  )
+})
+
+const vectorTypeSummary = computed(() => {
+  const vectors = graphics.value?.vectors ?? []
+  const labels = { rect: '矩形', line: '线段', path: '路径' }
+  const counts = new Map()
+  for (const vector of vectors) {
+    counts.set(vector.type, (counts.get(vector.type) ?? 0) + 1)
+  }
+  return [...counts.entries()].map(([type, count]) => ({
+    type,
+    label: labels[type] ?? type,
+    count,
+  }))
+})
+
+const previewVectors = computed(() => graphics.value?.vectors?.slice(0, 20) ?? [])
+
+const topUnknownOperators = computed(() => graphics.value?.unknownOperators?.slice(0, 15) ?? [])
+
+const graphicsDiagnostics = computed(() => graphics.value?.diagnostics?.slice(0, 12) ?? [])
+
+const graphicsHasWarning = computed(() => {
+  if (!graphics.value) return false
+  return (
+    graphics.value.truncated ||
+    (graphics.value.unknownOperators?.length ?? 0) > 0 ||
+    graphics.value.stats?.suppressedPaths > 0
+  )
+})
 
 const progressPercent = computed(() => formatPercent(progress.value.ratio ?? 0))
 
@@ -211,6 +269,39 @@ function severityClass(severity) {
   return `severity-${severity ?? 'info'}`
 }
 
+function paintLabel(paint) {
+  if (!paint || paint.type === 'none') return '无'
+  if (paint.type === 'named') return paint.name
+  if (paint.type === 'unknown') return '未知'
+  const values = (paint.values ?? []).map((value) => {
+    const rounded = Math.round(value * 1000) / 1000
+    return String(rounded)
+  })
+  return `${paint.type}(${values.join(', ')})`
+}
+
+function formatBounds(bounds) {
+  if (!bounds) return '—'
+  return `${Math.round(bounds.x * 100) / 100}, ${Math.round(bounds.y * 100) / 100} · ${Math.round(bounds.width * 100) / 100}×${Math.round(bounds.height * 100) / 100}`
+}
+
+function formatRect(rect) {
+  if (!rect) return '—'
+  return `${Math.round(rect.x * 100) / 100}, ${Math.round(rect.y * 100) / 100} / ${Math.round(rect.width * 100) / 100} × ${Math.round(rect.height * 100) / 100} pt`
+}
+
+function vectorTypeLabel(type) {
+  return { rect: '矩形', line: '线段', path: '路径' }[type] ?? type
+}
+
+function formatMatrix(matrix) {
+  return (matrix ?? []).map((value) => Math.round(value * 1000) / 1000).join(' ')
+}
+
+function roadmapStateLabel(state) {
+  return { done: '完成', current: '当前', next: '下一步' }[state] ?? '计划'
+}
+
 function severityMark(severity) {
   return { error: '✕', warning: '▲', info: '●' }[severity] ?? '●'
 }
@@ -243,9 +334,9 @@ onBeforeUnmount(() => {
         <div>
           <div class="brand-title">
             AI Viewer Engine
-            <span class="stage-badge">STAGE 1 / 7</span>
+            <span class="stage-badge">STAGE 2 / 7</span>
           </div>
-          <div class="brand-sub">Illustrator .ai 结构检测 · 纯浏览器本地运行</div>
+          <div class="brand-sub">Illustrator .ai 结构检测 + 基础矢量提取 · 纯浏览器本地运行</div>
         </div>
       </div>
 
@@ -339,8 +430,14 @@ onBeforeUnmount(() => {
               <span v-if="report.detection.pdfVersion" class="chip">
                 PDF {{ report.detection.pdfVersion }}
               </span>
-              <span class="chip" :class="compatibilityClass(report.compatibility?.overall)">
+              <span v-if="report.compatibility?.overall" class="chip" :class="compatibilityClass(report.compatibility?.overall)">
                 {{ report.compatibility?.overallLabel }}
+              </span>
+              <span v-if="graphics?.status === 'parsed'" class="chip accent">
+                矢量 {{ report.graphics.vectorCount }}
+              </span>
+              <span v-if="report.graphics?.artboards?.length" class="chip">
+                Artboard {{ report.graphics.artboards.length }}（推断）
               </span>
             </div>
           </div>
@@ -360,7 +457,15 @@ onBeforeUnmount(() => {
               </span>
             </div>
             <div class="metric">
-              <span class="metric-label">检测耗时</span>
+              <span class="metric-label">矢量对象</span>
+              <span class="metric-value">{{ report.graphics?.vectorCount ?? 0 }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">画板候选</span>
+              <span class="metric-value">{{ report.graphics?.artboards?.length ?? 0 }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">解析耗时</span>
               <span class="metric-value">{{ report.durationMs ?? 0 }} ms</span>
             </div>
           </div>
@@ -516,6 +621,193 @@ onBeforeUnmount(() => {
           <p v-else class="muted small">无可用文本预览（数据可能被压缩、跳过或不存在）。</p>
         </section>
 
+        <section v-if="graphics" class="panel graphics-panel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">基础矢量解析（阶段 2）</h2>
+              <p class="panel-sub">
+                来源：{{ graphicsSourceLabel }} · 模式 <span class="mono">{{ graphics.mode }}</span>
+              </p>
+            </div>
+            <span class="status-pill" :class="`graphics-${graphics.status}`">
+              {{ graphicsStatusLabel }}
+            </span>
+          </div>
+
+          <div class="vector-metrics">
+            <div class="metric">
+              <span class="metric-label">Tokens</span>
+              <span class="metric-value">{{ graphics.tokenCount }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">白名单操作符</span>
+              <span class="metric-value">{{ graphics.stats?.operatorsExecuted ?? 0 }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">矢量对象</span>
+              <span class="metric-value">{{ graphics.vectorCount }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">未识别操作符</span>
+              <span class="metric-value">{{ graphics.unknownOperators?.length ?? 0 }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">画板候选</span>
+              <span class="metric-value">{{ graphics.artboards?.length ?? 0 }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">结果截断</span>
+              <span class="metric-value">{{ graphics.truncated ? '是' : '否' }}</span>
+            </div>
+          </div>
+
+          <p v-if="graphics.status === 'skipped'" class="muted small">
+            {{
+              graphics.reason === 'no-private-data'
+                ? '该 PDF 未包含可解析的 AI 私有数据；阶段 2 不解析 PDF 内容流，因此没有矢量结果。'
+                : '本次请求已关闭矢量解析。'
+            }}
+          </p>
+
+          <div v-if="graphicsHasWarning" class="banner banner-warning inline-banner">
+            <strong>部分内容未还原</strong>
+            <span>存在未识别操作符、截断或不可见路径，当前结果仅覆盖已支持的标准绘图子集。</span>
+          </div>
+
+          <div class="graphics-grid">
+            <div class="graphics-block">
+              <h3 class="subsection-title">对象类型</h3>
+              <div class="tag-cloud">
+                <span v-for="item in vectorTypeSummary" :key="item.type" class="tag">
+                  {{ item.label }} ×{{ item.count }}
+                </span>
+                <span v-if="!vectorTypeSummary.length" class="muted small">没有矢量对象</span>
+              </div>
+            </div>
+            <div class="graphics-block">
+              <h3 class="subsection-title">未支持特性</h3>
+              <div class="tag-cloud">
+                <span
+                  v-for="feature in graphics.unsupportedFeatures"
+                  :key="feature.feature"
+                  class="tag tag-muted"
+                >
+                  {{ feature.feature }} ×{{ feature.count }}
+                </span>
+                <span v-if="!graphics.unsupportedFeatures?.length" class="muted small">无</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+          <div class="mini-head">
+            <h3 class="subsection-title">画板候选</h3>
+            <span class="muted small">来自 BoundingBox / MediaBox，非原生画板数据</span>
+          </div>
+          <div v-if="graphics.artboards?.length" class="artboard-list">
+            <article v-for="artboard in graphics.artboards" :key="artboard.id" class="artboard-card">
+              <div class="artboard-head">
+                <strong>{{ artboard.name }}</strong>
+                <span class="chip">{{ artboard.source }}</span>
+              </div>
+              <p class="mono">{{ formatRect(artboard.rect) }}</p>
+              <p class="muted small">{{ artboard.note }}</p>
+            </article>
+          </div>
+          <p v-else class="muted small">未找到画板边界提示。</p>
+
+          <div class="divider"></div>
+          <div class="mini-head">
+            <h3 class="subsection-title">矢量对象</h3>
+            <span v-if="graphics.vectorCount > previewVectors.length" class="muted small">
+              显示前 {{ previewVectors.length }} / 共 {{ graphics.vectorCount }}
+            </span>
+          </div>
+          <div v-if="previewVectors.length" class="table-wrap">
+            <table class="marker-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>类型</th>
+                  <th>填充</th>
+                  <th>描边</th>
+                  <th>变换 [a b c d e f]</th>
+                  <th>包围盒 x, y · w×h</th>
+                  <th>子路径</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="vector in previewVectors" :key="vector.id">
+                  <td class="mono">{{ vector.id }}</td>
+                  <td>{{ vectorTypeLabel(vector.type) }}</td>
+                  <td class="mono">{{ paintLabel(vector.fill) }}</td>
+                  <td class="mono">
+                    {{ paintLabel(vector.stroke)
+                    }}<span v-if="vector.stroke.type !== 'none'"> · {{ vector.strokeWidth }}pt</span>
+                  </td>
+                  <td class="mono">{{ formatMatrix(vector.transform) }}</td>
+                  <td class="mono">{{ formatBounds(vector.bounds) }}</td>
+                  <td class="mono">{{ vector.subpaths.length }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else class="muted small">没有可展示的矢量对象。</p>
+
+          <template v-if="topUnknownOperators.length">
+            <div class="divider"></div>
+            <div class="mini-head">
+              <h3 class="subsection-title">未识别操作符</h3>
+              <span class="muted small">
+                共 {{ graphics.unknownOperators.length }} 种 · 显示前 {{ topUnknownOperators.length }}
+              </span>
+            </div>
+            <div class="table-wrap">
+              <table class="marker-table">
+                <thead>
+                  <tr>
+                    <th>操作符</th>
+                    <th>次数</th>
+                    <th>首次偏移</th>
+                    <th>行号</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="operator in topUnknownOperators" :key="operator.operator">
+                    <td class="mono">{{ operator.operator }}</td>
+                    <td>{{ operator.count }}</td>
+                    <td class="mono">{{ formatOffset(operator.firstOffset) }}</td>
+                    <td>{{ operator.firstLine }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+
+          <template v-if="graphicsDiagnostics.length">
+            <div class="divider"></div>
+            <h3 class="subsection-title">解析诊断</h3>
+            <ul class="diagnostic-list compact">
+              <li v-for="(diagnostic, index) in graphicsDiagnostics" :key="`${diagnostic.code}-${index}`">
+                <span class="severity-icon" :class="severityClass(diagnostic.severity)">
+                  {{ severityMark(diagnostic.severity) }}
+                </span>
+                <div>
+                  <div class="diagnostic-head">
+                    <span class="mono diagnostic-code">{{ diagnostic.code }}</span>
+                  </div>
+                  <p>{{ diagnostic.message }}</p>
+                </div>
+              </li>
+            </ul>
+          </template>
+
+          <p class="muted small footnote">
+            阶段 2 不渲染图形；Canvas 预览将在阶段 4 接入。当前结果只覆盖白名单操作符子集，且尚未用真实
+            AI 样本校准。
+          </p>
+        </section>
+
         <section class="panel">
           <div class="panel-head">
             <h2 class="panel-title">结构标记位置</h2>
@@ -587,13 +879,15 @@ onBeforeUnmount(() => {
           <p class="eyebrow">ZERO UPLOAD · LOCAL ONLY · NO PDF.JS</p>
           <h1>在浏览器里读懂 <span>.ai</span> 的内部结构</h1>
           <p class="lede">
-            自主实现的 Illustrator 文件结构检测链路：二进制读取 → 容器识别 → 版本标记 →
-            AI 私有数据定位与解压。所有处理都在本机完成，文件不会离开浏览器。
+            自主实现的 Illustrator 解析链路：二进制读取 → 容器识别 → 私有数据解压 →
+            基础 PostScript 绘图解析。阶段 2 已能提取路径、颜色与线型；图形渲染将在阶段 4 接入。
           </p>
 
           <div
             class="dropzone"
             :class="{ dragging }"
+            role="group"
+            aria-label="AI 文件上传区域"
             @click="pick"
             @dragenter="onDragEnter"
             @dragover="onDragOver"
@@ -633,10 +927,10 @@ onBeforeUnmount(() => {
           </article>
           <article class="panel feature">
             <span class="feature-index">03</span>
-            <h2>按阶段验证</h2>
+            <h2>阶段 2：基础解析</h2>
             <p>
-              当前仅完成阶段 1。后续按 PostScript / PGF 解析、Scene Graph、Canvas 渲染、WASM、Worker
-              的顺序推进，每阶段补充真实样本测试。
+              已实现白名单 PostScript 操作符、路径 / 颜色 / 线型提取与结构化 JSON；尚未用真实 AI
+              样本校准，因此只标记为部分支持。
             </p>
           </article>
         </section>
@@ -644,7 +938,7 @@ onBeforeUnmount(() => {
         <section class="panel roadmap">
           <div class="panel-head">
             <h2 class="panel-title">开发路线</h2>
-            <span class="muted small">阶段 1 正在进行</span>
+            <span class="muted small">阶段 2 进行中</span>
           </div>
           <ol class="roadmap-list">
             <li v-for="stage in ROADMAP" :key="stage.n" :class="stage.state">
@@ -654,7 +948,7 @@ onBeforeUnmount(() => {
                 <span>{{ stage.desc }}</span>
               </div>
               <span class="roadmap-state">
-                {{ stage.state === 'current' ? '当前' : stage.state === 'next' ? '下一步' : '计划' }}
+                {{ roadmapStateLabel(stage.state) }}
               </span>
             </li>
           </ol>
@@ -663,7 +957,7 @@ onBeforeUnmount(() => {
     </main>
 
     <footer class="footer">
-      <span>AI Viewer Engine v0.1.0 · JavaScript 基础解析链路可独立运行</span>
+      <span>AI Viewer Engine v0.2.0 · Stage 2 基础解析 · JavaScript 链路可独立运行</span>
       <span class="footer-sep">·</span>
       <span>WASM 仅作为后续加速项，不是运行前提</span>
     </footer>
@@ -1611,6 +1905,110 @@ h1 span {
   background: var(--amber-soft);
 }
 
+.status-pill.graphics-parsed {
+  color: var(--green);
+  border-color: rgba(52, 211, 153, 0.3);
+  background: var(--green-soft);
+}
+
+.status-pill.graphics-failed {
+  color: var(--red);
+  border-color: rgba(251, 113, 133, 0.3);
+  background: var(--red-soft);
+}
+
+.status-pill.graphics-skipped,
+.status-pill.graphics-empty {
+  color: var(--amber);
+  border-color: rgba(251, 191, 36, 0.3);
+  background: var(--amber-soft);
+}
+
+.panel-sub {
+  margin: 4px 0 0;
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.vector-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 18px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(3, 6, 12, 0.36);
+}
+
+.graphics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.subsection-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+}
+
+.graphics-block {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(10, 15, 27, 0.42);
+}
+
+.graphics-block .subsection-title {
+  margin-bottom: 9px;
+}
+
+.tag-muted {
+  color: var(--text-dim);
+  border-color: var(--border);
+  background: rgba(125, 155, 220, 0.07);
+}
+
+.inline-banner {
+  margin: 0 0 16px;
+}
+
+.artboard-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.artboard-card {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(10, 15, 27, 0.42);
+}
+
+.artboard-card p {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+}
+
+.artboard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.artboard-head strong {
+  font-size: 12.5px;
+}
+
+.diagnostic-list.compact li {
+  padding: 8px 10px;
+}
+
 .inline-error {
   margin: 0 0 12px;
   color: var(--red);
@@ -1833,8 +2231,14 @@ h1 span {
 
   .grid,
   .feature-grid,
-  .roadmap-list {
+  .roadmap-list,
+  .graphics-grid,
+  .artboard-list {
     grid-template-columns: 1fr;
+  }
+
+  .vector-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .summary-metrics {

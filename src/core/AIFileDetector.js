@@ -26,6 +26,7 @@ import {
   ErrorCodes,
   createDiagnostic,
 } from '../utils/errors.js'
+import { extractPageBoxes } from './PageBoxExtractor.js'
 
 export const ContainerKind = Object.freeze({
   PDF: 'pdf',
@@ -710,6 +711,16 @@ export async function detectStructure(input, options = {}) {
   const aiTags = collectAiTags(textWindows)
   const binaryDataBlocks = collectBinaryDataBlocks(textWindows)
   const pdfVersion = detectFormVersion(textWindows)
+  const pageBoxHints = []
+  for (const window of textWindows) {
+    if (pageBoxHints.length >= 24) break
+    pageBoxHints.push(
+      ...extractPageBoxes(window.text, {
+        offsetBase: window.start,
+        limit: 24 - pageBoxHints.length,
+      }),
+    )
+  }
 
   const container = detectContainer(parser, markersById)
   const diagnostics = [...container.diagnostics]
@@ -814,6 +825,7 @@ export async function detectStructure(input, options = {}) {
       privateData.compression === 'ascii85+zstd',
     hasBinaryDataBlocks: binaryDataBlocks.length > 0,
     binaryDataBlocks,
+    pageBoxHints,
     aiTagCount: aiTags.length,
     aiTags,
   }
@@ -876,6 +888,8 @@ export async function detectStructure(input, options = {}) {
       trailingData: privateData.trailingData,
       preview: privateData.preview,
       decodedMarkers: privateData.decodedMarkers,
+      // 瞬态字段：仅供 AIParserEngine 在内部执行矢量解析，返回 UI 前会被删除
+      text: privateData.text ?? '',
       error: privateData.error,
     },
     markers,
@@ -895,7 +909,6 @@ export async function detectStructure(input, options = {}) {
     ),
   }
 
-  delete privateData.text
   return report
 }
 

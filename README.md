@@ -3,13 +3,11 @@
 > 浏览器本地运行的 Adobe Illustrator `.ai` 文件解析与预览引擎。
 > 自主实现 JavaScript 解析链路 + Canvas 渲染，不使用 PDF.js、Photopea、Ghostscript 等第三方预览/转换引擎。
 
-**当前状态：阶段 1（项目初始化与文件结构检测）已完成，矢量解析与渲染尚未实现。**
+**当前状态：阶段 2（基础解析引擎）已完成并通过测试；矢量预览仍待阶段 4。**
 
 ---
 
-## 1. 当前能做什么
-
-阶段 1 实现了一条可独立运行的 JavaScript 结构检测链路：
+## 1. 当前链路
 
 ```
 File / Blob / ArrayBuffer
@@ -18,66 +16,85 @@ File / Blob / ArrayBuffer
    BinaryParser（边界检查、字节搜索、ASCII85、zlib 解压）
         │
         ▼
-  AIFileDetector（容器识别 + 版本 + 私有数据 + 诊断）
+  AIFileDetector（容器 / 版本 / 私有数据 / 画板边界提示）
         │
         ▼
- CompatibilityEngine（FULL / PARTIAL / UNSUPPORTED / INVALID）
+ PostScriptLexer → PostScriptParser（白名单操作符 + 图形状态）
         │
         ▼
-   AiInspector.vue（拖拽上传、结构报告可视化）
+   VectorParser（路径 / 矩形 / 线段 / 颜色 / 线型 / 包围盒）
+        │
+        ▼
+ CompatibilityEngine + AiInspector.vue（结构化 JSON 与可视化）
 ```
 
-已支持：
+阶段 2 的图形能力是**实验性的**：已完成标准 PostScript 绘图子集的实现与单元测试，但尚未用真实 Illustrator 样本校准。
 
-- 读取 `File` / `Blob` / `ArrayBuffer` / `Uint8Array`，流式进度与取消。
-- 识别 PDF 容器（`%PDF-1.x`）、DOS EPS 二进制头（`0xC5D0D3C6`）、PostScript（`%!PS-Adobe`）与 EPS（`%%BoundingBox`）。
-- 识别 Illustrator Creator 版本与 `%AI<n>_` 私有格式标记。
-- 定位并解码：
-  - `%AI12_CompressedData` → zlib
-  - `%AI24_ZStandard_Data` → Zstandard（取决于运行环境是否支持 `DecompressionStream('zstd')`）
-  - `%AI9_PrivateDataBegin` → ASCII85（可嵌套 zlib）
-- 输出结构化检测报告：文件信息、容器、版本、标记偏移、私有数据预览、能力矩阵、诊断信息。
-- 所有解析异常转换为结构化错误，页面不会崩溃。
-- 34 项单元测试，覆盖读取、二进制边界、ASCII85、zlib、容器识别与引擎调度。
+## 2. 已支持
 
-尚未实现（故意不标记为支持）：
+**文件与结构**
 
-- PostScript / PGF 词法与语法解析
-- 路径、颜色、填充、描边的提取
-- Scene Graph
-- Canvas 渲染与预览交互
-- 多画板、文本、图片、渐变
-- WASM 加速、Web Worker 后台解析
+- `File` / `Blob` / `ArrayBuffer` / `Uint8Array` 读取，流式进度与取消。
+- PDF 容器、DOS EPS 二进制头、EPS、纯 PostScript 识别。
+- Illustrator Creator 版本与 `%AI<n>_` 私有格式标记。
+- 私有数据定位与解码：AI12 zlib、AI9 ASCII85（可嵌套 zlib）、AI24 Zstandard（取决于运行环境）。
+- 页面边界提示：`%%BoundingBox` / `%%HiResBoundingBox` / `/MediaBox` / `/CropBox`。
 
----
+**基础解析（阶段 2）**
 
-## 2. 快速开始
+- PostScript 词法：数字、名字、字符串、十六进制串、数组、字典、注释、过程边界。
+- 白名单操作符：
+  - 路径：`m` / `l` / `c` / `v` / `y` / `h` / `re` / `rect` / `n`
+  - 绘制：`f` / `f*` / `S` / `s` / `B` / `B*` / `b` / `b*`
+  - 颜色：`rg` / `k` / `g` / `RG` / `K` / `G` / `cs` / `sc` / `scn` / `sethsbcolor`
+  - 线型：`w` / `J` / `j` / `M` / `d`
+  - 变换与状态：`translate` / `scale` / `rotate` / `cm` / `concat` / `gsave` / `grestore` / `q` / `Q`
+  - 基础栈运算：`add` / `sub` / `mul` / `div` 等
+- 提取矩形、线段、贝塞尔路径、复合子路径、RGB / CMYK / Gray 颜色、线宽、端点、连接、虚线、CTM 与包围盒。
+- 未知操作符、裁剪、文字、图片、过程体全部记录诊断并安全跳过，不执行任意代码。
 
-要求：Node.js `>= 22.12`（Vite 8 要求），npm 10+。
+**工程**
+
+- 69 项单元测试；Vite 8 生产构建通过。
+- 结构化错误与诊断，页面不会因坏文件崩溃。
+- 所有处理在浏览器本地完成，无网络请求、无文件上传。
+
+## 3. 明确未实现
+
+- Scene Graph（Document / Artboard / Group / Shape / Transform）
+- Canvas 2D 矢量渲染、缩放、平移、多画板切换
+- 渐变、透明度组、复合形状、裁剪的实际渲染
+- 可编辑文字、文字轮廓、嵌入图片
+- PGF / AI 私有图层的完整原生语义（图层、画板命名、对象关系）
+- Zstandard 的 WASM 回退
+- Web Worker 后台解析、任务取消协议
+- Playwright 图像对比与浏览器矩阵测试
+
+## 4. 快速开始
+
+要求：Node.js `>= 22.12`，npm 10+。
 
 ```bash
 npm install
-npm run generate:samples   # 生成合成样本（仅结构检测演示）
+npm run generate:samples   # 生成合成样本（仅演示/测试）
 npm run dev                # 开发服务器
 ```
 
-打开终端输出的地址（默认 `http://localhost:5173`，端口被占用时会自动顺延）。
+打开终端输出的地址（默认 `http://localhost:5173`，端口占用时自动顺延）。
 
 其他命令：
 
 ```bash
-npm test                   # Vitest 单元测试（自动生成合成样本）
+npm test                   # Vitest（7 个文件 / 69 项测试）
 npm run build              # 生产构建
 npm run preview            # 预览构建产物
-npm run inspect -- tests/fixtures/real/your-file.ai --write   # 命令行检测真实文件
-npm run generate:samples   # 重新生成合成样本与 manifest
+npm run inspect -- tests/fixtures/real/your-file.ai --write
+npm run generate:samples
 ```
 
----
+`inspect` 会输出完整解析 JSON，并在 `--write` 时生成 `<file>.report.json`，用于登记真实样本。
 
-## 3. 测试样本策略（重要）
-
-需求文档明确禁止用改扩展名的方式伪造样本。本项目将样本分为两类：
+## 5. 测试样本策略（重要）
 
 | 目录 | 类型 | 用途 | 能否作为兼容性证据 |
 |---|---|---|---|
@@ -86,13 +103,11 @@ npm run generate:samples   # 重新生成合成样本与 manifest
 
 当前仓库**没有真实 AI 样本**，因此：
 
-- 合成样本在 UI 中会显示醒目的黄色警告。
-- 所有结果最多标记为“部分支持”，不会声称完成某种 AI 版本的兼容。
-- 真实样本的登记方式见 [`tests/fixtures/real/README.md`](tests/fixtures/real/README.md)。
+- 合成样本在 UI 中显示黄色警告。
+- 兼容性最高只到 `PARTIAL`，不会声称完成任何 AI 版本的兼容。
+- 真实样本登记方式见 [`tests/fixtures/real/README.md`](tests/fixtures/real/README.md)。
 
----
-
-## 4. 项目结构
+## 6. 项目结构
 
 ```
 .
@@ -101,17 +116,23 @@ npm run generate:samples   # 重新生成合成样本与 manifest
 │   └── wasm/                    # 阶段 5 预留
 ├── scripts/
 │   ├── generate-synthetic-samples.mjs
-│   └── inspect-ai.mjs           # 命令行结构检测
+│   └── inspect-ai.mjs           # 命令行解析/检测
 ├── src/
 │   ├── components/
-│   │   └── AiInspector.vue      # 阶段 1 UI（后续阶段替换为 AiViewer.vue）
+│   │   └── AiInspector.vue      # 阶段 1-2 UI（阶段 6 替换为 AiViewer.vue）
 │   ├── core/
 │   │   ├── AIFileReader.js
 │   │   ├── AIFileDetector.js
 │   │   ├── BinaryParser.js
+│   │   ├── PostScriptLexer.js
+│   │   ├── PostScriptParser.js
+│   │   ├── PostScriptGraphicsState.js
+│   │   ├── VectorParser.js
+│   │   ├── PageBoxExtractor.js
 │   │   └── AIParserEngine.js
 │   ├── engine/
-│   │   └── CompatibilityEngine.js
+│   │   ├── CompatibilityEngine.js
+│   │   └── TransformEngine.js
 │   ├── scene/                   # 阶段 3 预留
 │   ├── renderer/                # 阶段 4 预留
 │   ├── worker/                  # 阶段 6 预留
@@ -125,51 +146,40 @@ npm run generate:samples   # 重新生成合成样本与 manifest
 │   ├── fixtures/
 │   └── parser/
 ├── docs/
-│   ├── AI-FORMAT.md
-│   ├── PARSER-ARCHITECTURE.md
-│   ├── COMPATIBILITY.md
-│   ├── RENDERER-ARCHITECTURE.md
-│   └── STAGE-1-REPORT.md
-├── plan.md
 └── package.json
 ```
 
-职责边界：解析器不直接接触 Canvas；Vue 组件只调用 `AIParserEngine`；兼容性判定独立于检测器。
+职责边界：解析器不接触 Canvas；Vue 组件只调用 `AIParserEngine`；矢量对象保留局部坐标与 CTM，不做解析期栅格化。
 
----
-
-## 5. 阶段进度
+## 7. 阶段进度
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
 | 1 | 项目初始化、格式研究、结构检测 | ✅ 完成（真实样本验证待补） |
-| 2 | 基础解析引擎（PostScript / PGF） | ⏳ 下一步 |
-| 3 | Scene Graph | 计划 |
+| 2 | PostScript 解析、路径/颜色提取、画板边界推断 | ✅ 完成（真实样本验证待补） |
+| 3 | Scene Graph | ⏳ 下一步 |
 | 4 | Canvas Renderer | 计划 |
 | 5 | WebAssembly 加速 | 计划 |
 | 6 | Worker 与 AiViewer.vue | 计划 |
 | 7 | 兼容性与性能测试 | 计划 |
 
-阶段 1 的详细交付信息见 [`docs/STAGE-1-REPORT.md`](docs/STAGE-1-REPORT.md)。
+阶段 2 详细交付见 [`docs/STAGE-2-REPORT.md`](docs/STAGE-2-REPORT.md)。
 
----
-
-## 6. 设计约束
+## 8. 设计约束
 
 - **不上传文件**，不访问外部网络，纯浏览器本地运行。
 - **不引入第三方 AI 预览 SDK**，不把 PDF.js 作为解析或渲染依赖。
-- **不读取 PDF 预览图冒充 AI 原生解析**；结构报告会区分“容器识别”和“图形解析”。
-- **WASM 不是运行前提**：JavaScript 基础链路始终可独立工作（阶段 5 才接入 WASM）。
-- **未知数据不静默丢弃**：检测阶段即输出标记、偏移与诊断；后续解析阶段将继续保留操作符与失败位置。
+- **不读取 PDF 预览图冒充 AI 原生解析**。
+- **不执行文件内脚本**：过程体、字典、未知操作符只记录或跳过。
+- **WASM 不是运行前提**：JavaScript 链路始终可独立工作。
+- **未知数据不静默丢弃**：操作符、偏移、行号、诊断均进入结构化报告。
 
----
+## 9. 研究来源与许可
 
-## 7. 研究来源与许可
-
-阶段 1 仅研究公开资料中的格式思路，**没有复制第三方源码**：
+阶段 1-2 仅研究公开资料中的格式与架构思路，**没有复制第三方源码**：
 
 - [Pilser/illustrator-rs](https://github.com/Pilser/illustrator-rs) — MIT，容器与私有数据提取思路参考。
-- [opendesigndev/illustrator-parser-pdfcpu](https://github.com/opendesigndev/illustrator-parser-pdfcpu) — Apache-2.0，架构与测试组织参考；其 pdfcpu 依赖不进入本项目。
+- [opendesigndev/illustrator-parser-pdfcpu](https://github.com/opendesigndev/illustrator-parser-pdfcpu) — Apache-2.0，架构与测试组织参考；不引入 pdfcpu。
 - [flyfish-dev/file-viewer](https://github.com/flyfish-dev/file-viewer) — Apache-2.0，兼容性诊断与多格式架构参考。
 - Adobe Illustrator 兼容性指南（公开 PDF）。
 

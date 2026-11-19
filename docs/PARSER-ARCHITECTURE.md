@@ -1,6 +1,7 @@
 # 解析器架构
 
-> 当前实现阶段：**1（结构检测）**。本文同时标注后续阶段的计划边界，未实现部分不会在代码或 UI 中标记为可用。
+> 当前实现阶段：**2（基础解析引擎）**。
+> 未实现部分不会在代码、UI 或兼容性报告中被标记为可用。
 
 ## 1. 分层
 
@@ -12,7 +13,7 @@
                             │ AIParserEngine.parse()
 ┌───────────────────────────▼──────────────────────────────┐
 │ AIParserEngine                                           │
-│ 读取 → 检测 → 兼容性评估 → 输出结构化报告                   │
+│ 读取 → 检测 → 基础绘图解析 → 兼容性评估 → 结构化报告         │
 └───────────────┬──────────────────────────┬───────────────┘
                 │                          │
 ┌───────────────▼────────────┐  ┌──────────▼───────────────┐
@@ -22,54 +23,80 @@
                 │ Uint8Array
 ┌───────────────▼────────────┐
 │ AIFileDetector             │
-│ 容器 / 版本 / 标记 / 私有数据 │
+│ 容器 / 版本 / 私有数据 / 边界 │
 └───────────────┬────────────┘
-                │
-┌───────────────▼────────────┐
-│ BinaryParser               │
-│ 边界检查、字节搜索、解压      │
-└────────────────────────────┘
+                │ 已解码文本
+┌───────────────▼────────────┐   ┌─────────────────────────┐
+│ PostScriptLexer            │──▶│ PostScriptParser        │
+│ token 化（无执行）           │   │ 白名单操作符 + 状态栈     │
+└────────────────────────────┘   └───────────┬─────────────┘
+                                             │ 路径 + 颜色 + CTM
+                                 ┌───────────▼─────────────┐
+                                 │ VectorParser            │
+                                 │ 分类 / 规范化 / 包围盒    │
+                                 └─────────────────────────┘
 
-阶段 2+ 追加（尚未实现）：
-AIFileDetector → PostScriptLexer → PostScriptParser → PGFParser
-              → VectorParser → SceneGraph → CanvasRenderer
+阶段 3+：VectorParser → Scene Graph → CanvasRenderer
 ```
 
-## 2. 模块职责（阶段 1 实际实现）
+## 2. 模块职责
 
 | 模块 | 职责 | 不负责 |
 |---|---|---|
 | `AIFileReader` | 统一来源读取、流式分块、进度、取消、SHA-256 | 格式判断 |
-| `BinaryParser` | 字节/整数/浮点读取、BMH 字节搜索、ASCII85、zlib 解压 | AI 语法 |
-| `AIFileDetector` | 容器识别、版本标记、私有数据定位/解码、诊断 | 图形提取 |
-| `CompatibilityEngine` | 将能力与诊断映射为四级兼容性 | 解析 |
+| `BinaryParser` | 字节/整数/浮点读取、BMH 搜索、ASCII85、zlib | AI 语法 |
+| `AIFileDetector` | 容器识别、版本标记、私有数据定位/解码、诊断、页面边界提示 | 图形提取 |
+| `PostScriptLexer` | token 化数字/名字/字符串/数组/字典/过程/注释 | 执行、绘图 |
+| `PostScriptParser` | 白名单操作符、路径构建、图形状态、颜色、变换、诊断 | Canvas、Scene Graph |
+| `PostScriptGraphicsState` | CTM、填充/描边颜色、线宽、端点、连接、虚线 | 视口变换 |
+| `VectorParser` | 矩形/线段/路径分类、颜色规范化、包围盒 | 栅格化、分组关系 |
+| `PageBoxExtractor` | BoundingBox / MediaBox / CropBox 提示与画板候选 | 原生 Artboard 语义 |
+| `TransformEngine` | 仿射矩阵工具（阶段 2） | 屏幕坐标/视口（阶段 4） |
+| `CompatibilityEngine` | 能力与诊断映射为四级兼容性 | 解析 |
 | `AIParserEngine` | 调度、进度聚合、结构化错误边界 | 具体解析细节 |
-| `AiInspector.vue` | 上传、拖拽、报告可视化、取消 | 任何解析 |
 
-### 契约
+## 3. 契约
 
 ```js
 const result = await engine.parse(fileOrBuffer, {
   signal,
   onProgress(event),
   decodePrivateData: true,
+  parseGraphics: true,
 })
 
 // 成功
 {
   ok: true,
-  stage: 1,
+  stage: 2,
   report: {
-    schemaVersion, stage, generatedAt,
+    schemaVersion, stage, generatedAt, durationMs,
     file: { name, size, sha256 },
-    detection: { container, confidence, pdfVersion, aiFormatVersion, creator, … },
-    structure: { hasPdf, hasPostScript, hasPrivateData, aiTags, … },
-    privateData: { status, compression, decodedBytes, preview, decodedMarkers, … },
-    markers: [{ id, label, needle, offset, count, present }],
-    capabilities: { … },        // 未实现能力一律 false
+    detection: { … },
+    structure: { hasPdf, hasPrivateData, pageBoxHints, … },
+    privateData: { status, compression, decodedBytes, preview, … }, // 解码文本为瞬态字段，返回前移除
+    graphics: {
+      status: 'parsed' | 'empty' | 'skipped' | 'failed',
+      mode: 'ai-private' | 'postscript' | 'none',
+      source: 'private-data' | 'postscript-body' | null,
+      tokenCount, vectorCount,
+      vectors: [{
+        id, type: 'rect' | 'line' | 'path',
+        subpaths: [{ closed, segments: [{ type, x, y, x1, y1, x2, y2 }] }],
+        fill: { type: 'rgb' | 'cmyk' | 'gray' | 'named' | 'none', values },
+        stroke: { … },
+        fillRule, strokeWidth, lineCap, lineJoin, miterLimit, dashArray, dashOffset,
+        transform: [a, b, c, d, e, f],
+        bounds: { x, y, width, height },
+        boundsApproximate, rect?, support: 'PARTIAL'
+      }],
+      artboards: [{ rect, source, confidence, note }],
+      unknownOperators: [{ operator, count, firstOffset, firstLine }],
+      unsupportedFeatures, diagnostics, stats, truncated
+    },
+    capabilities: { … },
     diagnostics: [{ code, message, severity }],
     compatibility: { overall, items, note },
-    scan: { scannedBytes, truncated, windows, elapsedMs },
   },
 }
 
@@ -77,43 +104,52 @@ const result = await engine.parse(fileOrBuffer, {
 { ok: false, aborted: false, error: { code, message, details } }
 ```
 
-## 3. 错误与诊断模型
+`graphics.vectors` 保留局部坐标和绘制时 CTM；渲染阶段再应用矩阵，不在解析期栅格化。
 
-- 致命错误使用 `AiViewerError(code, message, details)`，由引擎转换为 `{ ok:false, error }`。
-- 非致命问题写入 `report.diagnostics`，等级为 `info` / `warning` / `error`。
-- 每个诊断包含稳定 `code`，便于测试与后续 UI 过滤。
-- 取消使用 `AbortSignal`，返回 `aborted: true`，不产生错误弹窗。
+## 4. 错误与诊断
 
-已实现的稳定错误码（节选）：
+- 致命错误：`AiViewerError(code, message, details)` → `{ ok:false, error }`。
+- 非致命：`report.diagnostics` / `report.graphics.diagnostics`，等级 `info` / `warning` / `error`。
+- 取消：`AbortSignal` → `aborted: true`。
 
-`EMPTY_FILE`、`FILE_TOO_LARGE`、`READ_FAILED`、`BINARY_RANGE`、`INFLATE_FAILED`、`INFLATE_LIMIT`、`ASCII85_INVALID`、`ABORTED`。
+稳定错误码：`EMPTY_FILE`、`FILE_TOO_LARGE`、`READ_FAILED`、`BINARY_RANGE`、`INFLATE_FAILED`、`INFLATE_LIMIT`、`ASCII85_INVALID`、`ABORTED`。
 
-已实现的诊断码（节选）：
+解析诊断码（节选）：`STACK_UNDERFLOW`、`TYPE_ERROR`、`PATH_WITHOUT_MOVETO`、`PATH_LIMIT`、`TOKEN_LIMIT`、`UNTERMINATED_STRING`、`UNTERMINATED_ARRAY`、`UNKNOWN_OPERATOR`（以 `unknownOperators` 汇总）、`UNSUPPORTED_COLORSPACE`、`GRAPHICS_NO_VECTORS`、`GRAPHICS_UNKNOWN_OPERATORS`、`ARTBOARD_HINTS_NOT_FOUND`。
 
-`UNKNOWN_CONTAINER`、`PDF_HEADER_OFFSET`、`TRUNCATED_FILE`、`PDF_WITHOUT_PRIVATE_DATA`、`EPS_PS_SECTION`、`EPS_PS_SECTION_INVALID`、`PRIVATE_DATA_SKIPPED`、`PRIVATE_DATA_TRAILING_DATA`、`PRIVATE_DATA_DECODE_FAILED`、`PRIVATE_DATA_COMPRESSION_UNSUPPORTED`、`SCAN_TRUNCATED`、`CREATOR_NOT_FOUND`。
+## 5. 安全限制
 
-## 4. 数据与性能约束
+| 限制 | 当前值 |
+|---|---|
+| 单文件 | 512 MiB |
+| 私有数据段读取 | 64 MiB |
+| 单次解压输出 | 128 MiB |
+| 绘图文本 | 16 MiB |
+| token 数 | 200 000 |
+| 操作数栈 | 10 000 |
+| 矢量对象 | 50 000 |
+| 路径点 | 1 000 000 |
+| 未知操作符种类 | 2 000 |
+| 解析诊断 | 200 |
+| 画板候选 | 24 |
 
-- 主线程只做小文件检测；阶段 6 将把大文件解析移入 Worker。
-- 读取与解压都有硬上限，禁止无边界分配。
-- 标记扫描采用首尾窗口策略，避免数百 MB 文件的全文线性扫描。
-- 解压在阶段 1 使用浏览器原生 `DecompressionStream`；阶段 5 增加 WASM 实现，但 JS 路径必须始终可用。
-- `report.privateData.text` 只在内部使用，不通过 API 返回，避免大字符串长期驻留。
+过程体与字典不执行；未知操作符不猜测语义；文字/图片/裁剪记录为未支持；不做任何文件、网络、进程操作。
 
-## 5. 阶段 2 计划
+## 6. 阶段 2 的已知限制
 
-1. `PostScriptLexer`：数字、字符串、名字、数组、字典、注释、十六进制串。
-2. `PostScriptParser`：栈式执行，白名单操作符（`m/l/c/v/y/re/h/f/S/w/k/rg/RG/g/G` 等）。
-3. `PostScriptGraphicsState`：CTM、颜色、线宽、虚线、裁剪、`q/Q` 栈。
-4. `PathBuilder`：MoveTo / LineTo / CubicBezier / ClosePath，保留矢量坐标。
-5. `PGF` 数据探索：基于真实样本定位图层、分组、画板与对象关系。
-6. 未知操作符：记录操作符、偏移与上下文，安全跳过，不猜测图形。
+1. 未用真实 AI 私有数据校准操作符集合与参数顺序。
+2. AI 私有数据中的图层、分组、画板命名、对象关系尚未还原。
+3. 裁剪路径只记录，不参与后续图形裁剪。
+4. 文字、图片、图案、渐变、透明度组未解析。
+5. 三次曲线包围盒基于控制点，属于近似值。
+6. 变换以绘制时 CTM 快照保存，尚未恢复分组层级。
+7. 大文件解析仍在主线程（阶段 6 移入 Worker）。
 
-**进入阶段 3 的前提**：至少一个真实 AI 8/10 样本与一个真实 PDF 包裹样本能够输出稳定的路径 JSON，并有测试证据。
+## 7. 阶段 3 计划
 
-## 6. 后续阶段的边界
+1. 建立 `Document / Artboard / Group / Shape / Path / Transform / Fill / Stroke` 数据模型。
+2. 将阶段 2 的扁平矢量对象组织为层级 Scene Graph。
+3. 从真实样本中还原图层与分组关系。
+4. 补充复合路径、clip、渐变、透明度的数据结构（即使暂不渲染也要明确标记）。
+5. 为阶段 4 提供稳定的渲染输入契约。
 
-- Scene Graph 与 Canvas 完全解耦：渲染器只消费 `Document / Artboard / Group / Shape / Path`。
-- Worker 只负责解析，不持有 Canvas；结果通过 Transferable 回传。
-- WASM 只做扫描、解压、批量数值处理；解析器保留纯 JS 回退。
-- 任何“部分成功”都必须在兼容性报告中显示为 `PARTIAL`，不得显示为完整还原。
+**进入阶段 4 的前提**：至少一个真实 AI 样本可以输出结构稳定的 Scene Graph，并有测试证据。

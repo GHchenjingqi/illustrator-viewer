@@ -1,7 +1,7 @@
 {
   "name": "ai-viewer-engine",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "description": "浏览器本地 .ai 文件结构检测、解析与 Canvas 渲染引擎（Vue 3 + Vite）",
   "scripts": {

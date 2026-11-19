@@ -23,6 +23,25 @@ export {
   looksLikeZstandard,
   toUint8Array,
 } from './core/BinaryParser.js'
+export {
+  PostScriptLexer,
+  PostScriptTokenType,
+  tokenizePostScript,
+} from './core/PostScriptLexer.js'
+export { PostScriptParser, parsePostScript } from './core/PostScriptParser.js'
+export { PostScriptGraphicsState } from './core/PostScriptGraphicsState.js'
+export { VectorBuilder, computeBounds, normalizePaint } from './core/VectorParser.js'
+export { extractPageBoxes, pageBoxesToArtboards } from './core/PageBoxExtractor.js'
+export {
+  IDENTITY_MATRIX,
+  concatMatrix,
+  matrixToObject,
+  multiplyMatrix,
+  rotationMatrix,
+  scalingMatrix,
+  transformPoint,
+  translationMatrix,
+} from './engine/TransformEngine.js'
 export { buildCompatibilityReport, SupportLevel } from './engine/CompatibilityEngine.js'
 export {
   AiViewerError,

@@ -8,7 +8,13 @@
 %%EndSetup
 %AI5_BeginLayer
 % 7,PostScript ӄ:
-0 0 m 200 0 l 200 120 l 0 120 l h
+0.2 0.6 0.9 rg
+0 0 200 120 re
+f
+2 w
+0.9 0.2 0.3 RG
+10 10 m 190 110 l
+S
 %AI5_EndLayer--
 showpage
 %%EOF

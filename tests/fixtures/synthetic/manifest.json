@@ -6,22 +6,22 @@
       "name": "synthetic-ai12-pdf.bin",
       "kind": "pdf-ai12",
       "description": "合成 PDF 容器 + AI12 zlib 私有数据块（仅结构检测演示）",
-      "size": 629,
-      "sha256": "09a982e6469603171e92839edf1440653e6f43c27cd28606fcf10e7c10076454"
+      "size": 662,
+      "sha256": "4fb873c66b4de8761659b184fe814c42e494474d47013385a567fc605e497e73"
     },
     {
       "name": "synthetic-legacy-ps.bin",
       "kind": "eps-postscript8",
       "description": "合成 Illustrator 8 风格 PostScript / EPS 文本（仅结构检测演示）",
-      "size": 271,
-      "sha256": "467c926565ac0a7c7e2d982c9731f2c555c96aa3b97bfc00983b76bfe10347ea"
+      "size": 308,
+      "sha256": "2e9abaf5709cd9af37abd44a186fd69c5b539369b232189de1c26fd83d502ad1"
     },
     {
       "name": "synthetic-ai9-eps.bin",
       "kind": "eps-ai9-ascii85-zlib",
       "description": "合成 EPS + AI9 ASCII85/zlib 私有数据（仅结构检测演示）",
-      "size": 354,
-      "sha256": "89e56224e39692d1714b57f3b23d19589a3373e23329d0e16d14a553c28ed100"
+      "size": 375,
+      "sha256": "fb8e940e9698a87dcfe0b8dabfa0a858538109d1c7a79d146534a54d96f7b9ee"
     },
     {
       "name": "synthetic-truncated-pdf.bin",
