@@ -9,7 +9,7 @@
 [![Vue 3](https://img.shields.io/badge/vue-3-42b883?logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![WASM](https://img.shields.io/badge/WASM-Rust-654ff0?logo=webassembly&logoColor=white)](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/wasm-src/src/lib.rs)
 
-[![Unit tests](https://img.shields.io/badge/tests-109%20passed-34d399)](https://github.com/GHchenjingqi/illustrator-viewer/tree/main/tests)
+[![Unit tests](https://img.shields.io/badge/tests-111%20passed-34d399)](https://github.com/GHchenjingqi/illustrator-viewer/tree/main/tests)
 [![E2E tests](https://img.shields.io/badge/E2E-21%20passed-34d399)](https://github.com/GHchenjingqi/illustrator-viewer/tree/main/tests/e2e)
 [![Browsers](https://img.shields.io/badge/Chromium%20%7C%20Firefox%20%7C%20WebKit-tested-5eead4)](https://github.com/GHchenjingqi/illustrator-viewer/tree/main/tests/e2e)
 [![Local only](https://img.shields.io/badge/privacy-local--only-5eead4)](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/README.md#12-设计约束)
@@ -90,7 +90,7 @@ npm install illustrator-viewer vue
 - 构建环境：Node.js `>= 22.12`（Vite 8 要求）
 - Vue `^3.5` 作为 peer dependency 由宿主应用提供
 
-> 包尚未发布时，可在本仓库执行 `npm pack`，然后在业务项目中 `npm install ../illustrator-viewer-0.7.0.tgz` 本地验证。
+> 包尚未发布时，可在本仓库执行 `npm pack`，然后在业务项目中 `npm install ../illustrator-viewer-0.8.0.tgz` 本地验证。
 
 ---
 
@@ -116,6 +116,14 @@ function onChange(event) {
   <AiViewer :file="file" height="640px" />
 </template>
 ```
+
+#### 只渲染画布（隐藏标题、工具栏和提示）
+
+```vue
+<AiViewer :file="file" :chrome="false" height="640px" />
+```
+
+`chrome=false` 时只保留 Canvas；滚轮缩放和拖拽平移仍然可用。
 
 组件会自动使用 Worker 解析；Worker 不可用时回退主线程。
 
@@ -220,6 +228,7 @@ WASM 仅用于多模式标记扫描和批量几何计算；不改变解析结果
 | `maxFileSize` | `Number` | `512 * 1024 * 1024` | 最大文件字节数 |
 | `worker` | `Boolean` | `true` | 是否使用 Worker |
 | `wasmUrl` | `String` | `''` | 可选 WASM 地址；为空时使用默认 `/wasm/...` |
+| `chrome` | `Boolean` | `true` | 显示标题、工具栏、提示和统计；设为 `false` 时只渲染画布 |
 
 **Events**
 
@@ -369,7 +378,7 @@ npm run dev                # 开发服务器（默认 5173）
 | `npm run build:demo` | 构建演示站到 `dist-demo/` |
 | `npm run build:wasm` | 重新构建 Rust/WASM 并复制到 `public/wasm` |
 | `npm run benchmark:wasm` | WASM vs JS 基准 |
-| `npm test` | Vitest：17 个文件 / 109 项 |
+| `npm test` | Vitest：18 个文件 / 111 项 |
 | `npm run test:watch` | Vitest watch |
 | `npm run test:e2e` | Playwright：Chromium / Firefox / WebKit 21 项 |
 | `npm run test:e2e:update` | 更新截图基线 |
@@ -495,7 +504,7 @@ npm run test:e2e
 
 - `AIWorker` + `AIWorkerClient`：后台解析、进度、取消、任务 ID 防旧结果覆盖。
 - Worker 以内联方式打包，发布后无需额外复制 Worker 文件；加载失败回退主线程。
-- 可复用 `AiViewer.vue`：file/width/height/zoom/draggable/fullscreen/maxFileSize/worker/wasmUrl props。
+- 可复用 `AiViewer.vue`：file/width/height/zoom/draggable/fullscreen/maxFileSize/worker/wasmUrl/chrome props。
 - ScenePreview 支持 zoom/draggable/fullscreen 开关与 zoom/artboard 事件。
 
 ### 阶段 7：兼容性与性能

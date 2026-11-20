@@ -70,7 +70,7 @@
 | `synthetic-ai9-eps.bin` | EPS + AI9 ASCII85/zlib | 375 B | `fb8e940e9698a87dcfe0b8dabfa0a858538109d1c7a79d146534a54d96f7b9ee` | AI9 解码 + 1 个矩形 + BoundingBox |
 | `synthetic-truncated-pdf.bin` | 截断 PDF | 69 B | `3e8b6dfc327803823654001320aa7ee5c0f5b4f951cbaa067400d41e921921e7` | `TRUNCATED_FILE` 诊断、不崩溃 |
 
-自动化验证：`npm test`（17 个文件 / 109 项通过）；`npm run test:e2e`（Chromium / Firefox / WebKit 共 21 项）。真实样本缺失时集成/E2E 自动跳过。
+自动化验证：`npm test`（18 个文件 / 111 项通过）；`npm run test:e2e`（Chromium / Firefox / WebKit 共 21 项）。真实样本缺失时集成/E2E 自动跳过。
 
 ## 5. 已知限制
 

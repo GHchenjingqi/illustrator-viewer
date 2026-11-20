@@ -8,6 +8,7 @@ const props = defineProps({
   zoom: { type: Boolean, default: true },
   draggable: { type: Boolean, default: true },
   fullscreen: { type: Boolean, default: true },
+  chrome: { type: Boolean, default: true },
   canvasHeight: { type: [String, Number], default: 520 },
 })
 
@@ -49,6 +50,13 @@ const previewNote = computed(() => {
     notes.push('透明度/外观效果未渲染')
   }
   return notes
+})
+
+const canvasStyle = computed(() => {
+  if (!props.chrome) return undefined
+  return {
+    height: typeof props.canvasHeight === 'number' ? `${props.canvasHeight}px` : props.canvasHeight,
+  }
 })
 
 function updateStats() {
@@ -182,8 +190,8 @@ defineExpose({
 </script>
 
 <template>
-  <section class="panel preview-panel">
-    <div class="panel-head">
+  <section class="panel preview-panel" :class="{ 'preview-panel--minimal': !chrome }">
+    <div v-if="chrome" class="panel-head">
       <div>
         <h2 class="panel-title">Canvas 预览（阶段 4）</h2>
         <p class="panel-sub">
@@ -210,12 +218,17 @@ defineExpose({
       </div>
     </div>
 
-    <div v-if="approximate" class="banner banner-warning inline-banner">
+    <div v-if="chrome && approximate" class="banner banner-warning inline-banner">
       <strong>部分预览</strong>
       <span>{{ previewNote.join('；') || '部分效果未完整还原' }}</span>
     </div>
 
-    <div ref="wrapper" class="canvas-wrap" :style="{ height: typeof canvasHeight === 'number' ? `${canvasHeight}px` : canvasHeight }">
+    <div
+      ref="wrapper"
+      class="canvas-wrap"
+      :class="{ 'canvas-wrap--minimal': !chrome }"
+      :style="canvasStyle"
+    >
       <canvas
         ref="canvas"
         class="preview-canvas"
@@ -226,12 +239,12 @@ defineExpose({
         @pointerup="onPointerUp"
         @pointercancel="onPointerUp"
       ></canvas>
-      <span class="canvas-hint">
+      <span v-if="chrome" class="canvas-hint">
         {{ zoom && draggable ? '滚轮缩放 · 拖拽平移' : zoom ? '滚轮缩放' : draggable ? '拖拽平移' : '' }}
       </span>
     </div>
 
-    <div class="preview-footer">
+    <div v-if="chrome" class="preview-footer">
       <span class="muted small">
         已绘制 {{ renderStats.shapesDrawn ?? 0 }} 个图形 ·
         {{ renderStats.groupsVisited ?? 0 }} 个组 ·
@@ -248,6 +261,28 @@ defineExpose({
 <style scoped>
 .preview-panel {
   margin-top: 16px;
+}
+
+.ai-viewer .preview-panel--minimal {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 320px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.preview-panel--minimal .canvas-wrap--minimal {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+  background: #f5f7fa;
 }
 
 .preview-actions {

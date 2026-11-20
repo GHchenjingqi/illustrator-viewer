@@ -15,6 +15,7 @@ const props = defineProps({
   maxFileSize: { type: Number, default: 512 * 1024 * 1024 },
   worker: { type: Boolean, default: true },
   wasmUrl: { type: String, default: '' },
+  chrome: { type: Boolean, default: true },
 })
 
 const emit = defineEmits([
@@ -132,6 +133,7 @@ defineExpose({ load, clear, cancel, fit, actualSize, getReport: () => report.val
 <template>
   <div
     class="ai-viewer"
+    :class="{ 'ai-viewer--minimal': !chrome }"
     :style="{ width: styleSize(width), height: styleSize(height) }"
   >
     <div v-if="busy" class="ai-viewer-state">
@@ -157,6 +159,7 @@ defineExpose({ load, clear, cancel, fit, actualSize, getReport: () => report.val
       :zoom="zoom"
       :draggable="draggable"
       :fullscreen="fullscreen"
+      :chrome="chrome"
       :canvas-height="height === 'auto' ? 520 : height"
       @zoom-change="(value) => emit('zoom-change', value)"
       @artboard-change="(value) => emit('artboard-change', value)"
