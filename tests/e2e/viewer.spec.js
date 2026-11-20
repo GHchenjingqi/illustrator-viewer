@@ -34,12 +34,14 @@ async function canvasNonWhitePixels(page) {
     const height = canvas.height
     const data = context.getImageData(0, 0, width, height).data
     let nonWhite = 0
+    let opaque = 0
     for (let index = 0; index < data.length; index += 4) {
+      if (data[index + 3] > 0) opaque += 1
       if (data[index] < 245 || data[index + 1] < 245 || data[index + 2] < 245) {
         nonWhite += 1
       }
     }
-    return { width, height, nonWhite }
+    return { width, height, nonWhite, opaque }
   })
 }
 
@@ -75,6 +77,19 @@ test('工具栏：缩放、适应、1:1', async ({ page }) => {
 
   await page.getByRole('button', { name: '1:1' }).click()
   await expect(zoomLabel).toContainText('%')
+})
+
+test('滚轮缩放：画板保持可见且不产生 NaN 平移', async ({ page }) => {
+  await upload(page, syntheticPath)
+  const zoomLabel = page.locator('.zoom-label')
+  const original = await zoomLabel.innerText()
+
+  await page.locator('.preview-canvas').hover()
+  await page.mouse.wheel(0, -120)
+  await expect(zoomLabel).not.toHaveText(original)
+
+  const pixels = await canvasNonWhitePixels(page)
+  expect(pixels.opaque).toBeGreaterThan(1000)
 })
 
 test('文件切换：旧结果不覆盖新结果', async ({ page }) => {

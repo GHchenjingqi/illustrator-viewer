@@ -171,13 +171,16 @@ export class CanvasRenderer {
 
   zoomAt(factor, screenX, screenY) {
     const artboard = this.artboard
-    if (!artboard) return
+    if (!artboard?.rect) return
+    // worldToScreen/screenToWorld 需要画板矩形本身（x/y/width/height），
+    // 不能直接传 Scene Graph 的画板节点，否则坐标会变成 NaN。
+    const rect = artboard.rect
     const before = this.getViewport()
-    const world = screenToWorld(before, artboard, screenX, screenY)
+    const world = screenToWorld(before, rect, screenX, screenY)
     const nextZoom = Math.min(Math.max(this.zoom * factor, 0.02), 64)
     this.zoom = nextZoom
     const after = this.getViewport()
-    const screen = worldToScreen(after, artboard, world.x, world.y)
+    const screen = worldToScreen(after, rect, world.x, world.y)
     this.panX += screenX - screen.x
     this.panY += screenY - screen.y
     this.render()

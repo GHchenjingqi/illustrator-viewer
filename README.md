@@ -110,7 +110,7 @@ File / Blob / ArrayBuffer
 - zstd 为单 stream，尾部带换行；已支持尾部空白裁剪重试
 - 绘图文本使用 **CR-only 换行**；词法器已兼容
 - 82 个矢量；原生 A4 画板 `595.276 × 841.890`
-- 17 个测试文件 / 108 项单元测试；18 项三浏览器 E2E 全部通过
+- 17 个测试文件 / 109 项单元测试；21 项三浏览器 E2E 全部通过
 
 **关于图二中的重复 Logo：** AI 私有层实际包含多份参考/隐藏副本（共 841 个路径），PDF `/ArtBox` 只覆盖中间那份可见内容（259 个路径）。我们解析 `ArtBox` 并过滤范围外图形，报告标注 `PDF_ARTBOX_VISIBILITY`。这是可见范围提示，不代表已完整还原 Illustrator 原生隐藏/裁剪语义。
 
@@ -135,8 +135,8 @@ npm run dev
 其他命令：
 
 ```bash
-npm test                    # 17 个测试文件 / 108 项测试
-npm run test:e2e            # Playwright 三浏览器 18 项 E2E
+npm test                    # 17 个测试文件 / 109 项测试
+npm run test:e2e            # Playwright 三浏览器 21 项 E2E
 npm run test:e2e:update     # 重新生成截图基线
 npm run build               # 前端生产构建
 npm run build:wasm          # 重新构建 Rust/WASM 并复制到 public/wasm

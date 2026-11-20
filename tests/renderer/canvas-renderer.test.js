@@ -308,4 +308,26 @@ describe('CanvasRenderer', () => {
     renderer.setZoom(2)
     expect(renderer.getScalePercent()).toBeGreaterThan(before)
   })
+
+  it('围绕鼠标位置缩放并保持光标下的世界坐标', () => {
+    const renderer = new CanvasRenderer(fakeCanvas(createContextRecorder()), { Path2D: FakePath2D })
+    renderer.setDocument(sceneWith([shape()]))
+
+    const artboard = renderer.artboard.rect
+    const screenX = 260
+    const screenY = 180
+    const before = renderer.getViewport()
+    const world = screenToWorld(before, artboard, screenX, screenY)
+
+    renderer.zoomAt(1.5, screenX, screenY)
+
+    expect(Number.isFinite(renderer.panX)).toBe(true)
+    expect(Number.isFinite(renderer.panY)).toBe(true)
+    expect(renderer.zoom).toBeCloseTo(1.5)
+
+    const after = renderer.getViewport()
+    const screen = worldToScreen(after, artboard, world.x, world.y)
+    expect(screen.x).toBeCloseTo(screenX)
+    expect(screen.y).toBeCloseTo(screenY)
+  })
 })
