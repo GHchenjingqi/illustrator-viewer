@@ -30,6 +30,14 @@ const PATTERNS = [
     kind: 'crop-box',
     regex: /\/CropBox\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*\]/g,
   },
+  {
+    kind: 'art-box',
+    regex: /\/ArtBox\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*\]/g,
+  },
+  {
+    kind: 'trim-box',
+    regex: /\/TrimBox\s*\[\s*(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*\]/g,
+  },
 ]
 
 /**
@@ -126,7 +134,16 @@ export function pageBoxesToContentBounds(hints) {
   const seen = new Set()
 
   for (const hint of hints) {
-    if (!['bounding-box', 'hi-res-bounding-box', 'page-bounding-box'].includes(hint.kind)) continue
+    if (
+      ![
+        'bounding-box',
+        'hi-res-bounding-box',
+        'page-bounding-box',
+        'art-box',
+      ].includes(hint.kind)
+    ) {
+      continue
+    }
     const [x1, y1, x2, y2] = hint.values ?? []
     if (![x1, y1, x2, y2].every(Number.isFinite)) continue
     const x = Math.min(x1, x2)

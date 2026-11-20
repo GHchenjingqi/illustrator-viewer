@@ -3,7 +3,7 @@
 > 浏览器本地运行的 Adobe Illustrator `.ai` 文件解析、Scene Graph 与 Canvas 预览引擎。
 > 自主实现 JavaScript 解析链路 + Rust/WASM 加速，不使用 PDF.js、Photopea、Ghostscript 等第三方预览/转换引擎。
 
-**当前状态：阶段 1–7 已完成。真实 AI24 样本（Illustrator 29.3）已能在 Worker 中解析，并在 Canvas 中预览。**
+**当前状态：阶段 1–7 已完成。真实 AI24 样本（Illustrator 29.3）已能在 Worker 中解析，并在 Canvas 中预览；841 个原始路径经 PDF ArtBox 过滤后显示 259 个可见图形。**
 
 开发页面：`npm run dev` 后打开终端输出地址（默认 `http://localhost:5173`）。
 
@@ -44,6 +44,7 @@ File / Blob / ArrayBuffer
 - 绘图段识别：`%AI5_BeginLayer`、`%%BeginData` 二进制块跳过。
 - 标准 PostScript + AI 私有操作符：`C/L/H/V/Y/F/N`、`Lb/Ln`、`u/U/*u/*U`、`Bb/BB/Bg/Xm/Bc/Bm`、`Xa/XA` 等。
 - 提取路径、线段、矩形、复合子路径、RGB/CMYK/Gray、渐变/专色标记、线型、CTM、包围盒。
+- 可见范围：解析 PDF `/ArtBox`，过滤 ArtBox 之外的隐藏/参考副本（诊断 `PDF_ARTBOX_VISIBILITY`）。
 - 渐变停靠点：解析 `%_BS` 行的位置与 RGB/CMYK，Canvas 用线性渐变渲染；方向/几何仍标记为近似。
 - 原生画板：DocumentData `ArtboardArray` 名称 / PositionPoint1/2 / 矩形；BoundingBox/MediaBox 回退。
 
@@ -94,14 +95,15 @@ File / Blob / ArrayBuffer
 | 文件 | 569,228 B · SHA-256 `57847b69…cb588` |
 | 容器 / 版本 | PDF 1.6 · Creator 24.0 · 应用 29.3.0 · AI24 |
 | 私有数据 | 对象 11–18，8 个 stream 分块 → 8,124,703 字节 |
-| 解析 | 65,114 tokens / 12,496 操作符 / **841 矢量** / 0 未知操作符 |
-| Scene Graph | 1 画板 / 2 图层 / 27 组 / 39 复合路径 / 841 图形 |
+| 解析 | 65,114 tokens / 12,496 操作符 / **841 矢量（原始）** / 0 未知操作符 |
+| Scene Graph | 1 画板 / 2 图层 / 27 组 / 39 复合路径 / **259 可见图形**（PDF ArtBox 过滤 582 个隐藏/参考副本） |
 | 画板 | 原生「画板 1」`1250 × 700` |
 | 颜色 | 540 渐变 / 252 专色或自定义 / 48 Gray / 1 无填充 |
-| 渲染 | Canvas 841 图形；792 个使用近似渐变/颜色，明确提示 |
-| 性能 | 完整解析约 350 ms；WASM 扫描 569 KB 一次调用 |
+| 渲染 | Canvas 259 可见图形；258 个使用近似渐变/颜色，明确提示 || 性能 | 完整解析约 350 ms；WASM 扫描 569 KB 一次调用 |
 
 > 只有 1 个 AI24 真实样本；AI 8 / 10 / CS / CS6 / 其他 CC 版本仍需补充。
+
+**关于图二中的重复 Logo：** AI 私有层实际包含多份参考/隐藏副本（共 841 个路径），PDF `/ArtBox` 只覆盖中间那份可见内容（259 个路径）。我们解析 `ArtBox` 并过滤范围外图形，报告标注 `PDF_ARTBOX_VISIBILITY`。这是可见范围提示，不代表已完整还原 Illustrator 原生隐藏/裁剪语义。
 
 ## 4. 明确未实现
 
@@ -124,7 +126,7 @@ npm run dev
 其他命令：
 
 ```bash
-npm test                    # 16 个测试文件 / 103 项测试
+npm test                    # 16 个测试文件 / 104 项测试
 npm run test:e2e            # Playwright 三浏览器 15 项 E2E
 npm run test:e2e:update     # 重新生成截图基线
 npm run build               # 前端生产构建

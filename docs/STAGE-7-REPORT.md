@@ -8,7 +8,7 @@
 
 | 层级 | 工具 | 数量 | 内容 |
 |---|---|---|---|
-| 单元测试 | Vitest | 16 个文件 / 103 项 | 读取、二进制、ASCII85、zlib、AI24、词法、解析、矢量、画板、Scene Graph、渲染、WASM、Worker、渐变 |
+| 单元测试 | Vitest | 16 个文件 / 104 项 | 读取、二进制、ASCII85、zlib、AI24、词法、解析、矢量、画板、Scene Graph、渲染、WASM、Worker、渐变 |
 | 真实样本集成 | Vitest | 1 项（本地） | 真实 AI24：解压、841 矢量、原生画板、WASM |
 | 浏览器 E2E | Playwright | 15 项（5 场景 × 3 浏览器） | 解析、Canvas、图像对比、工具栏、文件切换、损坏文件、真实样本 |
 | 性能基准 | Node | 1 项 | WASM vs JS 扫描/包围盒 |
@@ -28,7 +28,7 @@ E2E 覆盖：
 1. 合成 AI12：解析、Worker、Canvas、非白像素检查、截图对比。
 2. 工具栏：放大、适应、1:1。
 3. 文件切换：合成 AI12 → 旧版 PS → 合成 AI12，旧结果不覆盖新结果。
-4. 真实 AI24：841 图形、原生画板、WASM、Worker、部分预览提示、非白像素 > 1000。
+4. 真实 AI24：841 原始路径中 259 个 ArtBox 可见图形、原生画板、WASM、Worker、部分预览提示、非白像素 > 1000。
 5. 截断 PDF：输出 `TRUNCATED_FILE` 诊断，页面不崩溃。
 
 图像对比基线：
@@ -52,7 +52,7 @@ tests/e2e/__screenshots__/viewer.spec.js/synthetic-ai12-{chromium,firefox,webkit
 ## 4. 兼容性结论
 
 - 阶段 7 验证了 Chromium / Firefox / WebKit 的**基础解析与预览链路**。
-- 真实 AI24 样本在三种浏览器中均能渲染 841 个图形。
+- 真实 AI24 样本在三种浏览器中均能渲染 259 个 ArtBox 可见图形（原始 841）。
 - 渐变/专色仍是近似色，嵌入图片/裁剪/透明度未渲染，界面有明确提示。
 - 仅 1 个真实 AI24 样本；这不构成其他 Illustrator 版本的兼容承诺。
 

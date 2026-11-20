@@ -84,7 +84,17 @@ function relativeTransform(absolute, parentAbsolute) {
   return multiplyMatrix(absolute, invertMatrix(parentAbsolute))
 }
 
-function createShape(vector, parentAbsolute, gradients) {
+function createShape(vector, parentAbsolute, gradients, visibilityBounds) {
+  if (visibilityBounds && vector.bounds) {
+    const b = vector.bounds
+    const v = visibilityBounds
+    const intersects =
+      b.x + b.width >= v.x &&
+      b.x <= v.x + v.width &&
+      b.y + b.height >= v.y &&
+      b.y <= v.y + v.height
+    if (!intersects) return null
+  }
   return {
     type: 'shape',
     id: vector.id,
@@ -105,6 +115,7 @@ function createShape(vector, parentAbsolute, gradients) {
     boundsApproximate: vector.boundsApproximate,
     nonPrinting: Boolean(vector.nonPrinting),
     compound: Boolean(vector.compound),
+    sourceOffset: vector.sourceOffset ?? null,
     support: 'PARTIAL',
   }
 }
@@ -130,7 +141,7 @@ function closeRole(stack, role) {
   }
 }
 
-function buildEventTree(artboard, vectors, events, gradients) {
+function buildEventTree(artboard, vectors, events, gradients, visibilityBounds) {
   const rootNode = {
     type: 'group',
     role: 'layer',
@@ -149,8 +160,8 @@ function buildEventTree(artboard, vectors, events, gradients) {
       cursor += 1
       if (!vector) continue
       const parent = stack[stack.length - 1]
-      const shape = createShape(vector, parent.absolute, gradients)
-      parent.node.children.push(shape)
+      const shape = createShape(vector, parent.absolute, gradients, visibilityBounds)
+      if (shape) parent.node.children.push(shape)
     }
   }
 
@@ -182,10 +193,11 @@ function buildEventTree(artboard, vectors, events, gradients) {
   return rootNode
 }
 
-function buildFlatTree(artboard, vectors, gradients) {
+function buildFlatTree(artboard, vectors, gradients, visibilityBounds) {
   const root = createGroup('layer', artboard.name ?? 'Layer 1', IDENTITY_MATRIX, IDENTITY_MATRIX)
   for (const vector of vectors) {
-    root.children.push(createShape(vector, IDENTITY_MATRIX, gradients))
+    const shape = createShape(vector, IDENTITY_MATRIX, gradients, visibilityBounds)
+    if (shape) root.children.push(shape)
   }
   return root
 }
@@ -229,6 +241,7 @@ function computeVectorUnion(vectors) {
  */
 export function buildScene(report, options = {}) {
   const gradients = options.gradients ?? new Map()
+  const visibilityBounds = options.visibilityBounds ?? null
   const graphics = report.graphics ?? {}
   const vectors = Array.isArray(graphics.vectors) ? graphics.vectors : []
   const events = Array.isArray(graphics.sceneEvents) ? graphics.sceneEvents : []
@@ -258,8 +271,8 @@ export function buildScene(report, options = {}) {
   const artboards = artboardDefs.map((definition, index) => {
     const artboardVectors = assigned[index]
     const tree = useEvents
-      ? buildEventTree(definition, artboardVectors, events, gradients)
-      : buildFlatTree(definition, artboardVectors, gradients)
+      ? buildEventTree(definition, artboardVectors, events, gradients, visibilityBounds)
+      : buildFlatTree(definition, artboardVectors, gradients, visibilityBounds)
 
     const countApprox = (node) => {
       if (node.type === 'shape') {
@@ -314,6 +327,8 @@ export function buildScene(report, options = {}) {
       ...nodes,
       artboards: artboards.length,
       vectors: vectors.length,
+      visibleVectors: nodes.shapes,
+      filteredOutVectors: Math.max(0, vectors.length - nodes.shapes),
     },
     compatibility: report.compatibility ?? null,
     diagnostics: report.diagnostics ?? [],

@@ -43,15 +43,15 @@
 
 | 文件 | 来源版本 | 大小 | SHA-256 | 容器 | 私有数据 | 矢量对象 | 原生画板 | 结果 |
 |---|---|---|---|---|---|---|---|---|
-| `lengdong-logo.ai` | Illustrator 29.3 / AI24 | 569,228 B | `57847b69ee617af73ad630afeeb056efd14e06aa9582d4d86cf95ea7bccbd588` | PDF 1.6 | `%AI24_ZStandard_Data`，8 个 stream 块，zstd → 7.75 MB | 841（839 path / 2 line） | 「画板 1」1250 × 700 | `PARTIAL` |
+| `lengdong-logo.ai` | Illustrator 29.3 / AI24 | 569,228 B | `57847b69ee617af73ad630afeeb056efd14e06aa9582d4d86cf95ea7bccbd588` | PDF 1.6 | `%AI24_ZStandard_Data`，8 个 stream 块，zstd → 7.75 MB | 841 原始 / 259 可见 | 「画板 1」1250 × 700 | `PARTIAL` |
 
 详细结果：
 
-- 65,114 tokens / 12,496 个白名单操作符 / **0 未知操作符**。
+- 65,114 tokens / 12,496 个白名单操作符 / **841 个原始矢量** / 0 未知操作符。
+- PDF `/ArtBox` 可见范围过滤：保留 **259** 个，过滤 **582** 个隐藏/参考副本。
 - 540 个渐变填充标记、252 个自定义颜色、48 个 Gray、1 个无填充。
-- 图层 1 个、组 27 个、复合路径 39 个。
-- Scene Graph：1 画板 / 2 图层 / 27 组 / 39 复合路径 / 841 图形。
-- Canvas：841 图形已绘制；792 个渐变/专色使用近似几何/颜色，界面明确提示。
+- Scene Graph：1 画板 / 2 图层 / 27 组 / 39 复合路径 / 259 可见图形。
+- Canvas：259 可见图形已绘制；258 个使用近似几何/颜色，界面明确提示。
 - WASM：标记扫描 `scan.backend = wasm`；JavaScript 回退可用。
 - 嵌入栅格图 2 个，二进制块 6.3 MB 已跳过。
 - 浏览器解析 + 构建 Scene Graph 约 350 ms。
@@ -69,7 +69,7 @@
 | `synthetic-ai9-eps.bin` | EPS + AI9 ASCII85/zlib | 375 B | `fb8e940e9698a87dcfe0b8dabfa0a858538109d1c7a79d146534a54d96f7b9ee` | AI9 解码 + 1 个矩形 + BoundingBox |
 | `synthetic-truncated-pdf.bin` | 截断 PDF | 69 B | `3e8b6dfc327803823654001320aa7ee5c0f5b4f951cbaa067400d41e921921e7` | `TRUNCATED_FILE` 诊断、不崩溃 |
 
-自动化验证：`npm test`（16 个文件 / 103 项通过）；`npm run test:e2e`（Chromium / Firefox / WebKit 共 15 项）。真实样本缺失时集成/E2E 自动跳过。
+自动化验证：`npm test`（16 个文件 / 104 项通过）；`npm run test:e2e`（Chromium / Firefox / WebKit 共 15 项）。真实样本缺失时集成/E2E 自动跳过。
 
 ## 5. 已知限制
 

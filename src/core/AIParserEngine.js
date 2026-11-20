@@ -96,6 +96,50 @@ function createEmptyGraphics(status, reason, source = null) {
   return graphics
 }
 
+/**
+ * 当 PDF 页面带有比 MediaBox 更小的 ArtBox 时，把它作为可见内容范围。
+ * 某些 AI 私有数据会包含隐藏副本/参考稿；ArtBox 与专业软件的实际输出一致。
+ * 这不是完整的原生可见性语义，报告中必须明确标记来源。
+ */
+function computeArtBoxVisibility(report) {
+  const hints = report.structure?.pageBoxHints ?? []
+  const artBox = hints.find((hint) => hint.kind === 'art-box')
+  const mediaBox = hints.find((hint) => hint.kind === 'media-box')
+  const artboards = report.graphics?.artboards ?? []
+  if (!artBox || !mediaBox || artboards.length !== 1) return null
+
+  const artboard = artboards[0].rect
+  const [ax0, ay0, ax1, ay1] = artBox.values
+  const [mx0, my0, mx1, my1] = mediaBox.values
+  const width = Math.abs(ax1 - ax0)
+  const height = Math.abs(ay1 - ay0)
+  const mediaWidth = Math.abs(mx1 - mx0)
+  const mediaHeight = Math.abs(my1 - my0)
+  if (!(width > 0) || !(height > 0)) return null
+  if (width >= mediaWidth * 0.98 && height >= mediaHeight * 0.98) return null
+
+  const rect = {
+    x: artboard.x + (Math.min(ax0, ax1) - mx0),
+    y: artboard.y + (Math.min(ay0, ay1) - my0),
+    width,
+    height,
+  }
+
+  const intersectsArtboard =
+    rect.x + rect.width > artboard.x &&
+    rect.x < artboard.x + artboard.width &&
+    rect.y + rect.height > artboard.y &&
+    rect.y < artboard.y + artboard.height
+  if (!intersectsArtboard) return null
+
+  return {
+    rect,
+    source: 'pdf-artbox',
+    artBox: [...artBox.values],
+    mediaBox: [...mediaBox.values],
+  }
+}
+
 export class AIParserEngine {
   /**
    * @param {{ maxFileSize?: number, chunkSize?: number, hash?: boolean, wasm?: boolean, wasmBytes?: ArrayBuffer | Uint8Array, wasmUrl?: string }} [options]
@@ -284,6 +328,14 @@ export class AIParserEngine {
       report.privateData.text = undefined
       delete report.privateData.text
 
+      const visibility = graphics.status === 'parsed' ? computeArtBoxVisibility(report) : null
+      if (visibility) {
+        graphics.visibilityBounds = visibility.rect
+        graphics.visibilitySource = visibility.source
+        graphics.artBox = visibility.artBox
+        graphics.mediaBox = visibility.mediaBox
+      }
+
       report.capabilities.postScriptParsing = graphics.status === 'parsed'
       report.capabilities.vectorExtraction = graphics.vectorCount > 0
       report.capabilities.artboardDetection = graphics.artboards.length > 0
@@ -291,8 +343,25 @@ export class AIParserEngine {
       report.capabilities.canvasRendering = graphics.status === 'parsed'
       report.scene =
         graphics.status === 'parsed'
-          ? buildScene(report, { gradients })
+          ? buildScene(report, { gradients, visibilityBounds: visibility?.rect })
           : null
+
+      if (report.scene && visibility) {
+        graphics.visibleVectorCount = report.scene.stats.visibleVectors
+        graphics.filteredOutShapes = report.scene.stats.filteredOutVectors
+        report.diagnostics.push(
+          createDiagnostic(
+            'PDF_ARTBOX_VISIBILITY',
+            `使用 PDF ArtBox 限定可见内容：${report.scene.stats.vectors} 个解析图形中保留 ${report.scene.stats.visibleVectors} 个，过滤 ${report.scene.stats.filteredOutVectors} 个隐藏/参考副本`,
+            DiagnosticSeverity.INFO,
+            {
+              artBox: visibility.artBox,
+              mediaBox: visibility.mediaBox,
+              visibilityBounds: visibility.rect,
+            },
+          ),
+        )
+      }
 
       report.compatibility = buildCompatibilityReport(report)
       report.stage = ENGINE_STAGE

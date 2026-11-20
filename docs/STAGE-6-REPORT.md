@@ -53,7 +53,7 @@ Events：
 
 ## 4. 验证
 
-- 浏览器真实样本：摘要显示 `Worker` 与 `WASM 扫描`，Canvas 841 图形正常。
+- 浏览器真实样本：摘要显示 `Worker` 与 `WASM 扫描`，Canvas 259 个 ArtBox 可见图形正常。
 - 文件切换 E2E：合成 AI12 → 旧版 PostScript → 合成 AI12，无旧结果覆盖。
 - 取消：Worker 客户端单测验证发送 `PARSE_CANCEL` 并返回 `aborted`。
 - 回退：Worker 工厂抛错时走主线程引擎。

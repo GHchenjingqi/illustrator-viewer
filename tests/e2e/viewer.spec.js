@@ -106,7 +106,7 @@ test('截断 PDF：输出诊断而不崩溃', async ({ page }) => {
   expect(errors).toEqual([])
 })
 
-test('真实 AI24 样本：841 图形、原生画板、近似颜色提示', async ({ page }) => {
+test('真实 AI24 样本：ArtBox 可见 259 / 原始 841、原生画板、近似颜色提示', async ({ page }) => {
   test.skip(!hasRealSample, '真实样本未提供')
   const errors = []
   page.on('console', (message) => {
@@ -120,9 +120,9 @@ test('真实 AI24 样本：841 图形、原生画板、近似颜色提示', asyn
   await expect(page.locator('.summary-tags')).toContainText('原生画板 1')
   await expect(page.locator('.summary-tags')).toContainText('WASM 扫描')
   await expect(page.locator('.summary-tags')).toContainText('Worker')
-  await expect(page.locator('.summary-tags')).toContainText('矢量 841')
+  await expect(page.locator('.summary-tags')).toContainText('可见')
   await expect(page.locator('.preview-panel .inline-banner')).toContainText('部分预览')
-  await expect(page.locator('.preview-footer')).toContainText('841')
+  await expect(page.locator('.preview-footer')).toContainText('已绘制')
 
   const pixels = await canvasNonWhitePixels(page)
   expect(pixels.nonWhite).toBeGreaterThan(1000)

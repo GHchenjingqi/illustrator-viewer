@@ -122,4 +122,18 @@ describe('SceneBuilder', () => {
     expect(scene.artboards[0].source).toBe('vector-bounds')
     expect(scene.artboards[0].width).toBe(10)
   })
+
+  it('按可见范围过滤隐藏副本', () => {
+    const inside = vector('inside', { bounds: { x: 0, y: 0, width: 10, height: 10 } })
+    const outside = vector('outside', {
+      transform: [1, 0, 0, 1, 100, 0],
+      bounds: { x: 100, y: 0, width: 10, height: 10 },
+    })
+    const scene = buildScene(reportWith([inside, outside], []), {
+      visibilityBounds: { x: -5, y: -5, width: 20, height: 20 },
+    })
+    expect(scene.stats.shapes).toBe(1)
+    expect(scene.stats.visibleVectors).toBe(1)
+    expect(scene.stats.filteredOutVectors).toBe(1)
+  })
 })

@@ -52,7 +52,11 @@ describe.skipIf(!hasRealSample)('真实 AI24 样本（本地）', () => {
       expect(report.capabilities.vectorExtraction).toBe(true)
       expect(report.capabilities.sceneGraph).toBe(true)
       expect(report.capabilities.canvasRendering).toBe(true)
-      expect(report.scene.stats.shapes).toBe(841)
+      expect(graphics.visibleVectorCount).toBeGreaterThan(0)
+      expect(graphics.visibleVectorCount).toBeLessThan(graphics.vectorCount)
+      expect(graphics.filteredOutShapes).toBeGreaterThan(0)
+      expect(graphics.visibilityBounds).toBeTruthy()
+      expect(report.scene.stats.shapes).toBe(graphics.visibleVectorCount)
       expect(report.compatibility.overall).toBe('PARTIAL')
       if (wasmBytes) {
         expect(report.engine.wasmAvailable).toBe(true)

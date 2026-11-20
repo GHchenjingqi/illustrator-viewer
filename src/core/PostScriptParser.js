@@ -152,6 +152,7 @@ export class PostScriptParser {
     this.windingRule = 'nonzero'
     this.currentLayerName = null
     this.lastLayerEventIndex = -1
+    this.currentOperatorOffset = 0
     this.sceneEvents = []
     this.unknownOperators = new Map()
     this.featureCounts = new Map()
@@ -449,6 +450,7 @@ export class PostScriptParser {
       type,
       vectorIndex: this.builder.objects.length,
       transform: [...this.graphics.ctm],
+      offset: this.currentOperatorOffset,
       ...extra,
     }
     this.sceneEvents.push(event)
@@ -472,6 +474,7 @@ export class PostScriptParser {
 
   executeOperator(token) {
     const operator = token.value
+    this.currentOperatorOffset = token.offset
 
     if (!WHITELIST.has(operator)) {
       this.stats.operatorsSkipped += 1
@@ -1224,6 +1227,7 @@ export class PostScriptParser {
       nonPrinting: this.nonPrintingDepth > 0,
       compound: this.compoundDepth > 0,
       groupDepth: this.groupDepth,
+      sourceOffset: this.currentOperatorOffset,
     })
 
     if (object) this.stats.paintedObjects += 1

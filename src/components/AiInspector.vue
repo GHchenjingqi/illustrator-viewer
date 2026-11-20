@@ -145,6 +145,14 @@ const graphicsHasWarning = computed(() => {
   )
 })
 
+const vectorChipLabel = computed(() => {
+  const current = graphics.value
+  if (!current) return ''
+  return current.visibleVectorCount
+    ? `可见 ${current.visibleVectorCount} / ${current.vectorCount}`
+    : `矢量 ${current.vectorCount}`
+})
+
 const progressPercent = computed(() => formatPercent(progress.value.ratio ?? 0))
 
 const privateStatusLabel = computed(() => {
@@ -455,7 +463,7 @@ onBeforeUnmount(() => {
                 {{ report.compatibility?.overallLabel }}
               </span>
               <span v-if="graphics?.status === 'parsed'" class="chip accent">
-                矢量 {{ report.graphics.vectorCount }}
+                {{ vectorChipLabel }}
               </span>
               <span v-if="report.graphics?.artboards?.length" class="chip">
                 {{ report.graphics.artboardSource === 'native-artboard' ? '原生画板' : 'Artboard' }}
@@ -712,6 +720,12 @@ onBeforeUnmount(() => {
                 ? '该 PDF 未包含可解析的 AI 私有数据；阶段 2 不解析 PDF 内容流，因此没有矢量结果。'
                 : '本次请求已关闭矢量解析。'
             }}
+          </p>
+
+          <p v-if="report.graphics.visibilityBounds" class="muted small">
+            可见范围：PDF ArtBox {{ formatRect(report.graphics.visibilityBounds) }}；从
+            {{ report.graphics.vectorCount }} 个解析图形中过滤
+            {{ report.graphics.filteredOutShapes }} 个隐藏/参考副本。
           </p>
 
           <div v-if="graphicsHasWarning" class="banner banner-warning inline-banner">

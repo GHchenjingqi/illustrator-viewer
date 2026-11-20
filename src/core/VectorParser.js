@@ -270,6 +270,7 @@ export class VectorBuilder {
       nonPrinting: Boolean(input.nonPrinting),
       compound: Boolean(input.compound),
       groupDepth: Number.isInteger(input.groupDepth) ? input.groupDepth : 0,
+      sourceOffset: Number.isInteger(input.sourceOffset) ? input.sourceOffset : null,
       support: 'PARTIAL',
     }
 
