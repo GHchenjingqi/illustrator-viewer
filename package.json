@@ -1,19 +1,27 @@
 {
   "name": "ai-viewer-engine",
   "version": "0.7.0",
-  "description": "浏览器本地解析 Adobe Illustrator .ai 文件并渲染 Canvas 预览（Vue 3，JS + WASM，可选 Worker）。",
+  "description": "AI Viewer Engine - 浏览器本地解析 Adobe Illustrator .ai 文件并渲染 Canvas 预览（Vue 3 / JS + WASM）。",
   "type": "module",
   "license": "MIT",
   "keywords": [
+    "adobe-illustrator",
     "illustrator",
-    "ai",
+    "ai-file",
+    "ai-viewer",
+    "illustrator-parser",
     "postscript",
+    "eps",
+    "vector-graphics",
     "canvas",
-    "viewer",
-    "preview",
-    "parser",
+    "canvas-renderer",
+    "vue",
+    "vue3",
     "wasm",
-    "vue"
+    "parser",
+    "preview",
+    "scene-graph",
+    "file-viewer"
   ],
   "engines": {
     "node": ">=22.12"

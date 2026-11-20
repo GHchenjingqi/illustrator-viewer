@@ -1,7 +1,21 @@
 # AI Viewer Engine
 
+[![npm version](https://img.shields.io/npm/v/ai-viewer-engine?color=5eead4&label=npm)](https://www.npmjs.com/package/ai-viewer-engine)
+[![npm downloads](https://img.shields.io/npm/dm/ai-viewer-engine?color=8b93ff&label=downloads)](https://www.npmjs.com/package/ai-viewer-engine)
+[![License: MIT](https://img.shields.io/badge/license-MIT-34d399)](LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22.12-339933?logo=node.js&logoColor=white)](package.json)
+[![Vue 3](https://img.shields.io/badge/vue-3-42b883?logo=vue.js&logoColor=white)](https://vuejs.org/)
+[![WASM](https://img.shields.io/badge/WASM-Rust-654ff0?logo=webassembly&logoColor=white)](wasm-src/src/lib.rs)
+
+[![Unit tests](https://img.shields.io/badge/tests-109%20passed-34d399)](tests)
+[![E2E tests](https://img.shields.io/badge/E2E-21%20passed-34d399)](tests/e2e)
+[![Browsers](https://img.shields.io/badge/Chromium%20%7C%20Firefox%20%7C%20WebKit-tested-5eead4)](tests/e2e)
+[![Local only](https://img.shields.io/badge/privacy-local--only-5eead4)](README.md#12-设计约束)
+
 > 浏览器本地运行的 Adobe Illustrator `.ai` 文件解析、Scene Graph 与 Canvas 预览引擎。
 > 自主实现 JavaScript 解析链路 + Rust/WASM 加速，不使用 PDF.js、Photopea、Ghostscript 等第三方预览/转换引擎。
+
+**English:** A browser-local Adobe Illustrator (`.ai`, `.eps`, `.ps`) parser, Scene Graph builder, and Canvas preview engine for Vue 3 — with a pure JavaScript pipeline and optional Rust/WASM acceleration. No file uploads, no PDF.js, no third-party AI preview SDK.
 
 **当前状态：阶段 1–7 已完成，可作为 npm 包发布。** 真实 AI24 样本（Illustrator 29.3）已能在 Worker 中解析并在 Canvas 中预览；841 个原始路径经 PDF `/ArtBox` 过滤后显示 259 个可见图形。
 
@@ -10,6 +24,12 @@
 - 原生 `Canvas 2D` 渲染，支持缩放、平移、全屏、多画板
 - 提供 Vue 3 组件、解析引擎、Worker 客户端与 Canvas 渲染器
 - 对未完整还原的效果明确输出诊断，不静默错误渲染
+
+**关键词 / Topics：**
+
+`adobe-illustrator` · `illustrator` · `ai-file` · `.ai` · `postscript` · `vector-graphics` · `canvas` · `canvas-renderer` · `vue3` · `vite` · `wasm` · `parser` · `preview` · `scene-graph` · `zstandard` · `file-viewer`
+
+> GitHub 仓库可在 **About → Topics** 中填入以上关键词；npm 搜索则使用 `package.json` 的 `keywords` 字段。当前 `keywords` 已包含 Illustrator、PostScript、Canvas、Vue、WASM、parser、preview 等词。
 
 ---
 
@@ -297,7 +317,7 @@ dist/
 npm pack --dry-run
 ```
 
-当前发布内容约 6 个文件、97 KB（压缩后），只包含 `dist/`、`README.md`、`LICENSE` 和 `package.json`。
+当前发布内容约 6 个文件、98 KB（压缩后），只包含 `dist/`、`README.md`、`LICENSE` 和 `package.json`。
 
 ### 5.3 发布
 
