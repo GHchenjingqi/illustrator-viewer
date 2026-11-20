@@ -3,6 +3,7 @@ import { onBeforeUnmount, ref, watch } from 'vue'
 import { AIParserEngine } from '../core/AIParserEngine.js'
 import { AIWorkerClient } from '../worker/AIWorkerClient.js'
 import ScenePreview from './ScenePreview.vue'
+import './viewer-base.css'
 
 const props = defineProps({
   file: { type: Object, default: null },
@@ -13,6 +14,7 @@ const props = defineProps({
   fullscreen: { type: Boolean, default: true },
   maxFileSize: { type: Number, default: 512 * 1024 * 1024 },
   worker: { type: Boolean, default: true },
+  wasmUrl: { type: String, default: '' },
 })
 
 const emit = defineEmits([
@@ -26,8 +28,14 @@ const emit = defineEmits([
 ])
 
 const preview = ref(null)
-const engine = new AIParserEngine({ maxFileSize: props.maxFileSize })
-const workerClient = new AIWorkerClient({ fallbackEngine: engine })
+const engine = new AIParserEngine({
+  maxFileSize: props.maxFileSize,
+  wasmUrl: props.wasmUrl || undefined,
+})
+const workerClient = new AIWorkerClient({
+  fallbackEngine: engine,
+  wasmUrl: props.wasmUrl || undefined,
+})
 const report = ref(null)
 const error = ref(null)
 const busy = ref(false)

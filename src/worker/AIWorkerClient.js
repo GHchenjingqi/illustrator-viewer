@@ -9,6 +9,7 @@
  */
 
 import { AIParserEngine } from '../core/AIParserEngine.js'
+import AIWorker from './AIWorker.js?worker&inline'
 
 export class AIWorkerClient {
   /**
@@ -18,6 +19,7 @@ export class AIWorkerClient {
     this.workerFactory = options.workerFactory ?? null
     this.fallbackEngine = options.fallbackEngine ?? new AIParserEngine()
     this.wasm = options.wasm ?? true
+    this.wasmUrl = options.wasmUrl ?? null
     this.worker = null
     this.sequence = 0
     this.activeTaskId = null
@@ -33,7 +35,7 @@ export class AIWorkerClient {
     try {
       this.worker =
         this.workerFactory?.() ??
-        new Worker(new URL('./AIWorker.js', import.meta.url), { type: 'module' })
+        new AIWorker()
       this.worker.addEventListener('message', (event) => {
         const message = event.data ?? {}
         const listener = this.listeners.get(message.taskId)
@@ -142,6 +144,7 @@ export class AIWorkerClient {
           decodePrivateData: options.decodePrivateData ?? true,
           parseGraphics: options.parseGraphics ?? true,
           wasm: options.wasm ?? this.wasm,
+          wasmUrl: options.wasmUrl ?? this.wasmUrl ?? undefined,
         },
       })
     })

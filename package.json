@@ -1,15 +1,54 @@
 {
   "name": "ai-viewer-engine",
-  "private": true,
   "version": "0.7.0",
+  "description": "浏览器本地解析 Adobe Illustrator .ai 文件并渲染 Canvas 预览（Vue 3，JS + WASM，可选 Worker）。",
   "type": "module",
-  "description": "浏览器本地 .ai 文件结构检测、解析与 Canvas 渲染引擎（Vue 3 + Vite）",
+  "license": "MIT",
+  "keywords": [
+    "illustrator",
+    "ai",
+    "postscript",
+    "canvas",
+    "viewer",
+    "preview",
+    "parser",
+    "wasm",
+    "vue"
+  ],
+  "engines": {
+    "node": ">=22.12"
+  },
+  "main": "./dist/ai-viewer-engine.js",
+  "module": "./dist/ai-viewer-engine.js",
+  "exports": {
+    ".": {
+      "import": "./dist/ai-viewer-engine.js",
+      "default": "./dist/ai-viewer-engine.js"
+    },
+    "./style.css": "./dist/style.css",
+    "./wasm/ai_viewer_wasm.wasm": "./dist/wasm/ai_viewer_wasm.wasm",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/build-package.mjs",
+    "build:lib": "node scripts/build-package.mjs",
+    "build:demo": "vite build --outDir dist-demo",
     "build:wasm": "node scripts/build-wasm.mjs",
+    "prepack": "node scripts/build-package.mjs",
     "benchmark:wasm": "node scripts/benchmark-wasm.mjs",
-    "preview": "vite preview",
+    "preview": "vite preview --outDir dist-demo",
     "pretest": "node scripts/generate-synthetic-samples.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -18,17 +57,15 @@
     "inspect": "node scripts/inspect-ai.mjs",
     "generate:samples": "node scripts/generate-synthetic-samples.mjs"
   },
-  "engines": {
-    "node": ">=22.12"
-  },
-  "dependencies": {
-    "fzstd": "^0.1.1",
-    "vue": "^3.5.45"
+  "peerDependencies": {
+    "vue": "^3.5.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1",
     "@vitejs/plugin-vue": "^6.0.11",
+    "fzstd": "^0.1.1",
     "vite": "^8.3.8",
-    "vitest": "^5.1.1"
+    "vitest": "^5.1.1",
+    "vue": "^3.5.45"
   }
 }

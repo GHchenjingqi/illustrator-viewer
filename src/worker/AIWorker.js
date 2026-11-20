@@ -49,7 +49,7 @@ self.onmessage = async (event) => {
     maxFileSize: options.maxFileSize,
     hash: options.hash ?? true,
     wasm: options.wasm ?? true,
-    wasmUrl: wasmUrl(),
+    wasmUrl: options.wasmUrl || wasmUrl(),
   })
 
   try {

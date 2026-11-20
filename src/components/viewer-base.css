@@ -1,0 +1,119 @@
+/**
+ * AiViewer / ScenePreview 独立样式。
+ *
+ * 作用域限定在 `.ai-viewer` 内，避免影响宿主应用；
+ * 同时提供默认主题变量，使组件脱离演示页也能正常显示。
+ */
+
+.ai-viewer {
+  --bg: #06080f;
+  --bg-soft: #0a0f1b;
+  --panel: rgba(15, 22, 38, 0.78);
+  --panel-solid: #0f1626;
+  --panel-raised: #131c2f;
+  --border: rgba(125, 155, 220, 0.14);
+  --border-strong: rgba(125, 155, 220, 0.26);
+  --text: #e8eefc;
+  --text-dim: #9aa9c2;
+  --text-faint: #6b7a95;
+  --accent: #5eead4;
+  --accent-soft: rgba(94, 234, 212, 0.12);
+  --violet: #8b93ff;
+  --violet-soft: rgba(139, 147, 255, 0.14);
+  --amber: #fbbf24;
+  --amber-soft: rgba(251, 191, 36, 0.12);
+  --red: #fb7185;
+  --red-soft: rgba(251, 113, 133, 0.12);
+  --green: #34d399;
+  --green-soft: rgba(52, 211, 153, 0.12);
+  --radius: 16px;
+  --mono: 'JetBrains Mono', 'Cascadia Code', 'SFMono-Regular', Consolas, monospace;
+  --sans: 'Inter', 'Segoe UI Variable', 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui,
+    sans-serif;
+
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.ai-viewer *,
+.ai-viewer *::before,
+.ai-viewer *::after {
+  box-sizing: border-box;
+}
+
+.ai-viewer .panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.18);
+}
+
+.ai-viewer .panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.ai-viewer .panel-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.ai-viewer .panel-sub {
+  margin: 4px 0 0;
+  color: var(--text-faint);
+  font-size: 11.5px;
+}
+
+.ai-viewer .mini-btn {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: rgba(10, 15, 27, 0.6);
+  color: var(--text-dim);
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.ai-viewer .mini-btn:hover {
+  border-color: rgba(94, 234, 212, 0.4);
+  color: var(--accent);
+}
+
+.ai-viewer .banner {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-size: 12.5px;
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  background: var(--amber-soft);
+  color: #f8dfa4;
+  margin-bottom: 16px;
+}
+
+.ai-viewer .inline-banner {
+  margin-bottom: 12px;
+}
+
+.ai-viewer .muted {
+  color: var(--text-dim);
+}
+
+.ai-viewer .small {
+  font-size: 12px;
+}
+
+.ai-viewer .mono {
+  font-family: var(--mono);
+}
