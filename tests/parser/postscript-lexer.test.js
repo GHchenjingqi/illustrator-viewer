@@ -27,6 +27,12 @@ describe('PostScriptLexer', () => {
     expect(result.tokens[3].line).toBe(3)
   })
 
+  it('兼容 CR-only 换行（AI 私有数据常见）', () => {
+    const result = tokenizePostScript('% 注释\r0 0 m % 行尾注释\r100 0 l\r')
+    expect(result.tokens.map((token) => token.value)).toEqual([0, 0, 'm', 100, 0, 'l'])
+    expect(result.tokens[0].line).toBe(2)
+  })
+
   it('解析转义字符串与嵌套括号', () => {
     const result = tokenizePostScript('(a\\n(b)c\\(d\\)\\101)')
     expect(result.tokens[0].value).toBe('a\n(b)c(d)A')

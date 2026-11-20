@@ -44,6 +44,7 @@
 | 文件 | 来源版本 | 大小 | SHA-256 | 容器 | 私有数据 | 矢量对象 | 原生画板 | 结果 |
 |---|---|---|---|---|---|---|---|---|
 | `lengdong-logo.ai` | Illustrator 29.3 / AI24 | 569,228 B | `57847b69ee617af73ad630afeeb056efd14e06aa9582d4d86cf95ea7bccbd588` | PDF 1.6 | `%AI24_ZStandard_Data`，8 个 stream 块，zstd → 7.75 MB | 841 原始 / 259 可见 | 「画板 1」1250 × 700 | `PARTIAL` |
+| `wuyingying.ai` | Illustrator 28.1 / AI24 | 91,014 B | `81f47ed42edcf29a8e3b5a890a43f33bf2af28c958f6d5a9e2286bfb21e3bf7d` | PDF 1.6 | `%AI24_ZStandard_Data`，1 个 stream，zstd → 248,803 B | 82 | 「画板 1」595.276 × 841.890 | `PARTIAL` |
 
 详细结果：
 
@@ -69,7 +70,7 @@
 | `synthetic-ai9-eps.bin` | EPS + AI9 ASCII85/zlib | 375 B | `fb8e940e9698a87dcfe0b8dabfa0a858538109d1c7a79d146534a54d96f7b9ee` | AI9 解码 + 1 个矩形 + BoundingBox |
 | `synthetic-truncated-pdf.bin` | 截断 PDF | 69 B | `3e8b6dfc327803823654001320aa7ee5c0f5b4f951cbaa067400d41e921921e7` | `TRUNCATED_FILE` 诊断、不崩溃 |
 
-自动化验证：`npm test`（16 个文件 / 105 项通过）；`npm run test:e2e`（Chromium / Firefox / WebKit 共 15 项）。真实样本缺失时集成/E2E 自动跳过。
+自动化验证：`npm test`（17 个文件 / 108 项通过）；`npm run test:e2e`（Chromium / Firefox / WebKit 共 18 项）。真实样本缺失时集成/E2E 自动跳过。
 
 ## 5. 已知限制
 

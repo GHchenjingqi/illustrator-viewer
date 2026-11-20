@@ -12,7 +12,9 @@ const truncatedPath = fileURLToPath(
   new URL('../fixtures/synthetic/synthetic-truncated-pdf.bin', import.meta.url),
 )
 const realPath = fileURLToPath(new URL('../fixtures/real/lengdong-logo.ai', import.meta.url))
+const wuyingPath = fileURLToPath(new URL('../fixtures/real/wuyingying.ai', import.meta.url))
 const hasRealSample = existsSync(realPath)
+const hasWuyingSample = existsSync(wuyingPath)
 
 async function upload(page, path) {
   await page.goto('/')
@@ -128,5 +130,22 @@ test('真实 AI24 样本：ArtBox 可见 259 / 原始 841、原生画板、近�
   expect(pixels.nonWhite).toBeGreaterThan(1000)
   expect(elapsed).toBeLessThan(20_000)
   test.info().annotations.push({ type: 'parse+render', description: `${elapsed} ms` })
+  expect(errors).toEqual([])
+})
+
+test('真实 AI 样本：CR-only 换行 + zstd 尾部空白解码', async ({ page }) => {
+  test.skip(!hasWuyingSample, '真实样本未提供')
+  const errors = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text())
+  })
+
+  await upload(page, wuyingPath)
+  await expect(page.locator('.summary-tags')).toContainText('矢量 82')
+  await expect(page.locator('.graphics-panel')).toBeVisible()
+  await expect(page.locator('.preview-panel .panel-sub')).toContainText('595.276')
+
+  const pixels = await canvasNonWhitePixels(page)
+  expect(pixels.nonWhite).toBeGreaterThan(100)
   expect(errors).toEqual([])
 })

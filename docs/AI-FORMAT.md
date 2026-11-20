@@ -117,6 +117,8 @@ EPS 私有数据段通常为按行 `%` 前缀的 ASCII85 数据，可能再包�
 - 拼接 8 个 stream 块后，去掉 `%AI24_ZStandard_Data` 标记，再交给 zstd 解码。
 - 解码结果：8,124,703 字节 PostScript 风格文本。
 - 本样本实际 stream 数据总长 489,879 字节；按对象顺序截取，不能简单“从标记读到文件末尾”，因为文件尾部还有 PDF xref / trailer。
+- 第二个真实样本（`wuyingying.ai`）使用单个 stream，但 stream 数据末尾带 `\r`，且 `endstream` 前只有单个 CR；因此实现同时支持 `\r\nendstream`、`\nendstream`、`\rendstream`，并对 zstd frame 后的空白做裁剪重试。
+- 该样本的绘图文本使用 **CR-only 换行**（没有 `\n`）；词法器注释与行号解析必须把 `\r` 也视为行尾，否则整段会被当成一条注释吞掉。
 
 **二进制数据块**
 

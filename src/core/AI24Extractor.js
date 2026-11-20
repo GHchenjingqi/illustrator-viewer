@@ -27,6 +27,7 @@ const STREAM_HEADER = /(\d+)\s+0\s+obj\s*<<[^>]*?\/Length\s+(\d+)[^>]*?>>\s*stre
 
 const END_STREAM_CRLF = Uint8Array.from([0x0d, 0x0a, 0x65, 0x6e, 0x64, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d])
 const END_STREAM_LF = Uint8Array.from([0x0a, 0x65, 0x6e, 0x64, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d])
+const END_STREAM_CR = Uint8Array.from([0x0d, 0x65, 0x6e, 0x64, 0x73, 0x74, 0x72, 0x65, 0x61, 0x6d])
 
 function concatBytes(totalLength, chunks) {
   const output = new Uint8Array(totalLength)
@@ -38,10 +39,23 @@ function concatBytes(totalLength, chunks) {
   return output
 }
 
+function trimTrailingWhitespace(bytes) {
+  let end = bytes.byteLength
+  while (end > 0) {
+    const byte = bytes[end - 1]
+    if (byte === 0x0a || byte === 0x0d || byte === 0x20 || byte === 0x09) end -= 1
+    else break
+  }
+  return end === bytes.byteLength ? bytes : bytes.subarray(0, end)
+}
+
 function findStreamEnd(bytes, from) {
-  const crlf = indexOfBytes(bytes, END_STREAM_CRLF, from)
-  if (crlf >= 0) return crlf
-  return indexOfBytes(bytes, END_STREAM_LF, from)
+  const positions = [
+    indexOfBytes(bytes, END_STREAM_CRLF, from),
+    indexOfBytes(bytes, END_STREAM_LF, from),
+    indexOfBytes(bytes, END_STREAM_CR, from),
+  ].filter((position) => position >= 0)
+  return positions.length > 0 ? Math.min(...positions) : -1
 }
 
 function findNearestHeader(bytes, markerOffset) {
@@ -140,6 +154,25 @@ export async function extractAi24Zstd(bytes, markerOffset, options = {}) {
         source: insideStream ? 'pdf-stream-chunks' : 'raw-zstd',
       }
     } catch (error) {
+      // 某些 AI 文件在 zstd frame 后附带换行/空白；fzstd 会拒绝尾部字节，
+      // 而 Node/原生 zstd 能正常解压。先尝试裁剪尾部空白。
+      const trimmed = trimTrailingWhitespace(combined)
+      if (trimmed.byteLength !== combined.byteLength && trimmed.byteLength > 0) {
+        try {
+          const decoded = decompressZstd(trimmed, { maxBytes, signal: options.signal })
+          return {
+            status: 'decoded',
+            bytes: decoded,
+            compressedBytes: trimmed.byteLength,
+            chunksUsed: index + 1,
+            chunkCount: chunks.length,
+            objectNumber,
+            source: insideStream ? 'pdf-stream-chunks' : 'raw-zstd',
+          }
+        } catch {
+          // 保留原始错误，继续尝试后续分块
+        }
+      }
       lastError = error
     }
   }

@@ -48,4 +48,16 @@ describe.skipIf(!canCompress)('extractAi24Zstd', () => {
     expect(result.source).toBe('raw-zstd')
     expect(Buffer.from(result.bytes).toString('latin1')).toBe(plain.toString('latin1'))
   })
+
+  it('忽略 zstd frame 后的尾随换行', async () => {
+    const plain = Buffer.from('trailing newline payload '.repeat(50), 'latin1')
+    const compressed = zlib.zstdCompressSync(plain)
+    const marker = Buffer.from('%AI24_ZStandard_Data', 'latin1')
+    const buffer = Buffer.concat([marker, compressed, Buffer.from('\r\n', 'latin1')])
+    const markerOffset = buffer.indexOf(marker)
+
+    const result = await extractAi24Zstd(new Uint8Array(buffer), markerOffset)
+    expect(result.status).toBe('decoded')
+    expect(Buffer.from(result.bytes).toString('latin1')).toBe(plain.toString('latin1'))
+  })
 })

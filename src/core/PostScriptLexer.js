@@ -267,13 +267,23 @@ export class PostScriptLexer {
         this.line += 1
         break
       }
+      if (code === 0x0d) {
+        if (this.source.charCodeAt(this.offset) === 0x0a) this.offset += 1
+        this.line += 1
+        break
+      }
     }
   }
 
   countNewlines(start, end) {
     let count = 0
     for (let index = start; index < end; index += 1) {
-      if (this.source.charCodeAt(index) === 0x0a) count += 1
+      const code = this.source.charCodeAt(index)
+      if (code === 0x0a) count += 1
+      else if (code === 0x0d) {
+        count += 1
+        if (this.source.charCodeAt(index + 1) === 0x0a) index += 1
+      }
     }
     return count
   }

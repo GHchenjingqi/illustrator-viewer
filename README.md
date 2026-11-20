@@ -100,9 +100,17 @@ File / Blob / ArrayBuffer
 | Scene Graph | 1 画板 / 2 图层 / 27 组 / 39 复合路径 / **259 可见图形**（PDF ArtBox 过滤 582 个隐藏/参考副本） |
 | 画板 | 原生「画板 1」`1250 × 700` |
 | 颜色 | 540 渐变 / 252 专色或自定义 / 48 Gray / 1 无填充 |
-| 渲染 | Canvas 259 场景图形（实际绘制 258，1 个剪裁蒙版）；近似渐变/颜色明确提示 || 性能 | 完整解析约 350 ms；WASM 扫描 569 KB 一次调用 |
+| 渲染 | Canvas 259 场景图形（实际绘制 258，1 个剪裁蒙版）；近似渐变/颜色明确提示 |
+| 性能 | 完整解析约 350 ms；WASM 扫描 569 KB 一次调用 |
 
-> 只有 1 个 AI24 真实样本；AI 8 / 10 / CS / CS6 / 其他 CC 版本仍需补充。
+> 目前有两份 AI24 真实样本（29.3.0 / 28.1.0）；AI 8 / 10 / CS / CS6 / 其他 CC 版本仍需补充。
+
+第二个真实样本 `tests/fixtures/real/wuyingying.ai`（91 KB，AI24，应用 28.1.0）：
+
+- zstd 为单 stream，尾部带换行；已支持尾部空白裁剪重试
+- 绘图文本使用 **CR-only 换行**；词法器已兼容
+- 82 个矢量；原生 A4 画板 `595.276 × 841.890`
+- 17 个测试文件 / 108 项单元测试；18 项三浏览器 E2E 全部通过
 
 **关于图二中的重复 Logo：** AI 私有层实际包含多份参考/隐藏副本（共 841 个路径），PDF `/ArtBox` 只覆盖中间那份可见内容（259 个路径）。我们解析 `ArtBox` 并过滤范围外图形，报告标注 `PDF_ARTBOX_VISIBILITY`。这是可见范围提示，不代表已完整还原 Illustrator 原生隐藏/裁剪语义。
 
@@ -127,8 +135,8 @@ npm run dev
 其他命令：
 
 ```bash
-npm test                    # 16 个测试文件 / 105 项测试
-npm run test:e2e            # Playwright 三浏览器 15 项 E2E
+npm test                    # 17 个测试文件 / 108 项测试
+npm run test:e2e            # Playwright 三浏览器 18 项 E2E
 npm run test:e2e:update     # 重新生成截图基线
 npm run build               # 前端生产构建
 npm run build:wasm          # 重新构建 Rust/WASM 并复制到 public/wasm

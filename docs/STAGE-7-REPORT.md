@@ -8,9 +8,9 @@
 
 | 层级 | 工具 | 数量 | 内容 |
 |---|---|---|---|
-| 单元测试 | Vitest | 16 个文件 / 105 项 | 读取、二进制、ASCII85、zlib、AI24、词法、解析、矢量、画板、Scene Graph、渲染、WASM、Worker、渐变、剪裁蒙版 |
+| 单元测试 | Vitest | 17 个文件 / 108 项 | 读取、二进制、ASCII85、zlib、AI24、词法、解析、矢量、画板、Scene Graph、渲染、WASM、Worker、渐变、剪裁蒙版 |
 | 真实样本集成 | Vitest | 1 项（本地） | 真实 AI24：解压、841 矢量、原生画板、WASM |
-| 浏览器 E2E | Playwright | 15 项（5 场景 × 3 浏览器） | 解析、Canvas、图像对比、工具栏、文件切换、损坏文件、真实样本 |
+| 浏览器 E2E | Playwright | 18 项（6 场景 × 3 浏览器） | 解析、Canvas、图像对比、工具栏、文件切换、损坏文件、两个真实样本 |
 | 性能基准 | Node | 1 项 | WASM vs JS 扫描/包围盒 |
 
 ## 2. 浏览器矩阵
@@ -19,9 +19,9 @@
 
 | 浏览器 | 结果 | 备注 |
 |---|---|---|
-| Chromium (Playwright Chrome for Testing 159) | ✅ 5/5 | 真实样本 ~2.5 s |
-| Firefox 159 | ✅ 5/5 | 真实样本 ~1.8 s |
-| WebKit 27.2 | ✅ 5/5 | 真实样本约 4–10 s |
+| Chromium (Playwright Chrome for Testing 159) | ✅ 6/6 | 真实样本 ~2.2 s |
+| Firefox 159 | ✅ 6/6 | 真实样本 ~1.8 s |
+| WebKit 27.2 | ✅ 6/6 | 真实样本约 4–10 s |
 
 E2E 覆盖：
 
@@ -30,6 +30,7 @@ E2E 覆盖：
 3. 文件切换：合成 AI12 → 旧版 PS → 合成 AI12，旧结果不覆盖新结果。
 4. 真实 AI24：841 原始路径中 259 个 ArtBox 可见图形、原生画板、WASM、Worker、部分预览提示、非白像素 > 1000。
 5. 截断 PDF：输出 `TRUNCATED_FILE` 诊断，页面不崩溃。
+6. 第二个真实样本：CR-only 换行 + zstd 尾部空白，解析 82 矢量 / A4 画板。
 
 图像对比基线：
 
