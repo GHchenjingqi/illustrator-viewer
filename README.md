@@ -2,20 +2,26 @@
 
 [![npm version](https://img.shields.io/npm/v/illustrator-viewer?color=5eead4&label=npm)](https://www.npmjs.com/package/illustrator-viewer)
 [![npm downloads](https://img.shields.io/npm/dm/illustrator-viewer?color=8b93ff&label=downloads)](https://www.npmjs.com/package/illustrator-viewer)
-[![License: MIT](https://img.shields.io/badge/license-MIT-34d399)](LICENSE)
-[![Node.js](https://img.shields.io/badge/node-%3E%3D22.12-339933?logo=node.js&logoColor=white)](package.json)
+[![GitHub](https://img.shields.io/badge/GitHub-GHchenjingqi%2Fillustrator--viewer-181717?logo=github&logoColor=white)](https://github.com/GHchenjingqi/illustrator-viewer)
+[![GitHub issues](https://img.shields.io/github/issues/GHchenjingqi/illustrator-viewer?color=fb7185&logo=github)](https://github.com/GHchenjingqi/illustrator-viewer/issues)
+[![License: MIT](https://img.shields.io/badge/license-MIT-34d399)](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/LICENSE)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22.12-339933?logo=node.js&logoColor=white)](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/package.json)
 [![Vue 3](https://img.shields.io/badge/vue-3-42b883?logo=vue.js&logoColor=white)](https://vuejs.org/)
-[![WASM](https://img.shields.io/badge/WASM-Rust-654ff0?logo=webassembly&logoColor=white)](wasm-src/src/lib.rs)
+[![WASM](https://img.shields.io/badge/WASM-Rust-654ff0?logo=webassembly&logoColor=white)](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/wasm-src/src/lib.rs)
 
-[![Unit tests](https://img.shields.io/badge/tests-109%20passed-34d399)](tests)
-[![E2E tests](https://img.shields.io/badge/E2E-21%20passed-34d399)](tests/e2e)
-[![Browsers](https://img.shields.io/badge/Chromium%20%7C%20Firefox%20%7C%20WebKit-tested-5eead4)](tests/e2e)
-[![Local only](https://img.shields.io/badge/privacy-local--only-5eead4)](README.md#12-设计约束)
+[![Unit tests](https://img.shields.io/badge/tests-109%20passed-34d399)](https://github.com/GHchenjingqi/illustrator-viewer/tree/main/tests)
+[![E2E tests](https://img.shields.io/badge/E2E-21%20passed-34d399)](https://github.com/GHchenjingqi/illustrator-viewer/tree/main/tests/e2e)
+[![Browsers](https://img.shields.io/badge/Chromium%20%7C%20Firefox%20%7C%20WebKit-tested-5eead4)](https://github.com/GHchenjingqi/illustrator-viewer/tree/main/tests/e2e)
+[![Local only](https://img.shields.io/badge/privacy-local--only-5eead4)](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/README.md#12-设计约束)
 
 > 浏览器本地运行的 Adobe Illustrator `.ai` 文件解析、Scene Graph 与 Canvas 预览引擎。
 > 自主实现 JavaScript 解析链路 + Rust/WASM 加速，不使用 PDF.js、Photopea、Ghostscript 等第三方预览/转换引擎。
 
 **English:** Illustrator Viewer is a browser-local Adobe Illustrator (`.ai`, `.eps`, `.ps`) parser, Scene Graph builder, and Canvas preview engine for Vue 3 — with a pure JavaScript pipeline and optional Rust/WASM acceleration. No file uploads, no PDF.js, no third-party AI preview SDK.
+
+**GitHub：** <https://github.com/GHchenjingqi/illustrator-viewer>  
+**npm：** <https://www.npmjs.com/package/illustrator-viewer>  
+**问题反馈：** <https://github.com/GHchenjingqi/illustrator-viewer/issues>
 
 **当前状态：阶段 1–7 已完成，可作为 npm 包发布。** 真实 AI24 样本（Illustrator 29.3）已能在 Worker 中解析并在 Canvas 中预览；841 个原始路径经 PDF `/ArtBox` 过滤后显示 259 个可见图形。
 
@@ -48,7 +54,8 @@
 11. [项目结构](#11-项目结构)
 12. [设计约束](#12-设计约束)
 13. [依赖与研究来源](#13-依赖与研究来源)
-14. [License](#14-license)
+14. [项目链接](#14-项目链接)
+15. [License](#15-license)
 
 ---
 
@@ -282,7 +289,7 @@ new AIParserEngine({
 | `AiViewerError` / `ErrorCodes` / `createDiagnostic` | 错误与诊断模型 |
 | 矩阵工具 | `concatMatrix`、`multiplyMatrix`、`transformPoint` 等 |
 
-完整导出见 [`src/index.js`](src/index.js)。
+完整导出见 [`src/index.js`](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/src/index.js)。
 
 ---
 
@@ -495,7 +502,7 @@ npm run test:e2e
 
 - Playwright 三浏览器 21 项 E2E，含滚轮缩放、文件切换、损坏文件、两个真实样本。
 - Canvas 图像对比基线（合成 AI12）。
-- 性能报告：[`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)。
+- 性能报告：[`docs/PERFORMANCE.md`](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/docs/PERFORMANCE.md)。
 
 ---
 
@@ -642,14 +649,31 @@ File / Blob / ArrayBuffer
 
 更多文档：
 
-- [`docs/AI-FORMAT.md`](docs/AI-FORMAT.md)
-- [`docs/PARSER-ARCHITECTURE.md`](docs/PARSER-ARCHITECTURE.md)
-- [`docs/RENDERER-ARCHITECTURE.md`](docs/RENDERER-ARCHITECTURE.md)
-- [`docs/COMPATIBILITY.md`](docs/COMPATIBILITY.md)
-- [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)
+- [`docs/AI-FORMAT.md`](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/docs/AI-FORMAT.md)
+- [`docs/PARSER-ARCHITECTURE.md`](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/docs/PARSER-ARCHITECTURE.md)
+- [`docs/RENDERER-ARCHITECTURE.md`](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/docs/RENDERER-ARCHITECTURE.md)
+- [`docs/COMPATIBILITY.md`](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/docs/COMPATIBILITY.md)
+- [`docs/PERFORMANCE.md`](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/docs/PERFORMANCE.md)
 
 ---
 
-## 14. License
+## 14. 项目链接
 
-[MIT](LICENSE)
+- **GitHub 仓库：** <https://github.com/GHchenjingqi/illustrator-viewer>
+- **npm 包：** <https://www.npmjs.com/package/illustrator-viewer>
+- **问题反馈 / Issues：** <https://github.com/GHchenjingqi/illustrator-viewer/issues>
+- **Releases：** <https://github.com/GHchenjingqi/illustrator-viewer/releases>
+- **完整文档：** <https://github.com/GHchenjingqi/illustrator-viewer/tree/main/docs>
+
+在 GitHub 仓库的 **About → Topics** 中建议填写：
+
+```text
+illustrator, adobe-illustrator, illustrator-viewer, ai-file,
+postscript, canvas, vue3, wasm, parser, preview, scene-graph
+```
+
+---
+
+## 15. License
+
+[MIT](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/LICENSE)

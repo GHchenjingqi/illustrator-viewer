@@ -4,6 +4,14 @@
   "description": "Illustrator Viewer - 浏览器本地解析 Adobe Illustrator .ai 文件并渲染 Canvas 预览（Vue 3 / JS + WASM）。",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GHchenjingqi/illustrator-viewer.git"
+  },
+  "homepage": "https://github.com/GHchenjingqi/illustrator-viewer#readme",
+  "bugs": {
+    "url": "https://github.com/GHchenjingqi/illustrator-viewer/issues"
+  },
   "keywords": [
     "adobe-illustrator",
     "illustrator",
