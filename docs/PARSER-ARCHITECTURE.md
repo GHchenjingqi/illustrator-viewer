@@ -1,6 +1,6 @@
 # 解析器架构
 
-> 当前实现阶段：**5（解析 + Scene Graph + Canvas + WASM）**。
+> 当前实现阶段：**7（解析 + Scene Graph + Canvas + WASM + Worker + 三浏览器测试）**。
 > 未实现部分不会在代码、UI 或兼容性报告中被标记为可用。
 
 ## 1. 分层
@@ -66,6 +66,8 @@
 | `SceneBuilder` | 扁平矢量 + 事件 → Document/Artboard/Group/Shape | 渲染 |
 | `CanvasRenderer` / `PathRenderer` | Canvas 2D 绘制、视口、DPR、复合路径 | 解析 |
 | `WasmBridge` | 标记扫描 / 包围盒 / 批量变换的 WASM 接口 | 任何解析语义 |
+| `AIWorker` / `AIWorkerClient` | 后台解析、进度、取消、旧任务隔离 | Canvas / DOM |
+| `AiViewer.vue` | 可复用预览组件、props/events | 解析实现 |
 | `TransformEngine` | 仿射矩阵工具（阶段 2） | 屏幕坐标/视口（阶段 4） |
 | `CompatibilityEngine` | 能力与诊断映射为四级兼容性 | 解析 |
 | `AIParserEngine` | 调度、进度聚合、结构化错误边界 | 具体解析细节 |
@@ -163,13 +165,13 @@ const result = await engine.parse(fileOrBuffer, {
 8. AI24 zstd 使用 fzstd（JS）；WASM 用于标记扫描，WASM 包围盒因逐对象拷贝开销未启用。
 9. 大文件解析仍在主线程（阶段 6 移入 Worker）。
 
-## 7. 阶段 6 计划
+## 7. 阶段 6–7 现状
 
-1. 建立 `AIWorker.js`：读取/解析/Scene Graph 在 Worker 中执行。
-2. 消息协议：`PARSE_START` / `PARSE_PROGRESS` / `PARSE_RESULT` / `PARSE_ERROR` / `PARSE_CANCEL`。
-3. Transferable ArrayBuffer，避免大文件复制。
-4. 任务取消与旧任务结果丢弃。
-5. 将 Canvas 预览封装为 `AiViewer.vue`，支持 props/events 独立使用。
-6. 内存释放与 Worker 生命周期管理。
+- `AIWorker`：后台读取/解析/Scene Graph，支持 `PARSE_START/PROGRESS/RESULT/ERROR/CANCEL/WASM_READY`。
+- `AIWorkerClient`：任务 ID、进度、取消、Worker 失败回退主线程。
+- `AiViewer.vue`：独立 props/events，可嵌入其他页面。
+- Playwright：Chromium / Firefox / WebKit 共 12 项 E2E，包含 Canvas 图像对比与文件切换。
+- 性能：WASM 扫描约 1.8×；真实样本解析 + Scene Graph 约 350 ms。
+- 仍待：超大文件、更多 AI 版本、渐变/专色/文字/图片/裁剪完整还原、内存泄漏自动化测试。
 
-**进入阶段 7 的前提**：Worker 后台解析稳定，文件切换不出现旧结果覆盖新结果。
+**后续工作**：在真实样本集扩充后继续扩展操作符与颜色解析；不改变“JS 可独立运行、WASM 仅加速”的边界。

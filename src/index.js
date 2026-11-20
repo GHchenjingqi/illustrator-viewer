@@ -54,6 +54,8 @@ export { WasmBridge } from './wasm/WasmBridge.js'
 export { loadWasmModule, clearWasmCache } from './wasm/WasmLoader.js'
 export { decompressZstd } from './utils/zstd.js'
 export { decodeLatin1, decodeMaybeUtf8 } from './utils/encoding.js'
+export { AIWorkerClient } from './worker/AIWorkerClient.js'
+export { default as AiViewer } from './components/AiViewer.vue'
 export {
   AiViewerError,
   ErrorCodes,

@@ -26,8 +26,8 @@ import { decodeLatin1 } from '../utils/encoding.js'
 
 const now = () => globalThis.performance?.now?.() ?? Date.now()
 
-export const ENGINE_STAGE = 5
-export const ENGINE_VERSION = '0.5.0'
+export const ENGINE_STAGE = 7
+export const ENGINE_VERSION = '0.7.0'
 
 const MAX_GRAPHICS_TEXT_BYTES = 16 * 1024 * 1024
 const POSTSCRIPT_BODY_MARKERS = ['%%EndSetup', '%%EndProlog', '%AI5_BeginLayer', '%%BeginScript']
@@ -295,6 +295,8 @@ export class AIParserEngine {
           : null
 
       report.compatibility = buildCompatibilityReport(report)
+      report.stage = ENGINE_STAGE
+      if (report.scene) report.scene.compatibility = report.compatibility
       const wasmUsed = report.scan?.backend === 'wasm'
       report.engine = {
         version: ENGINE_VERSION,

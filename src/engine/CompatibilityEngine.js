@@ -140,7 +140,7 @@ export function buildCompatibilityReport(report) {
   }
 
   return {
-    stage: 5,
+    stage: 7,
     overall,
     overallLabel: LEVEL_LABELS[overall],
     note:

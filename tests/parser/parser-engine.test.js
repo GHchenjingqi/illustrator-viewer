@@ -20,7 +20,7 @@ describe('AIParserEngine', () => {
     expect(result.report.file.name).toBe('sample.bin')
     expect(result.report.file.sha256).toHaveLength(64)
     expect(result.report.compatibility.overall).toBe('PARTIAL')
-    expect(result.report.engine).toMatchObject({ stage: 5, javascriptOnly: true, wasmUsed: false })
+    expect(result.report.engine).toMatchObject({ stage: 7, javascriptOnly: true, wasmUsed: false })
     expect(result.report.durationMs).toBeGreaterThanOrEqual(0)
 
     const graphics = result.report.graphics

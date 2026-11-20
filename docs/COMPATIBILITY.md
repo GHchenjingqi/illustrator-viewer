@@ -1,7 +1,7 @@
 # 兼容性报告
 
 > 更新日期：2026-11-19
-> 当前阶段：5（解析 + Scene Graph + Canvas + WASM）
+> 当前阶段：7（解析 + Scene Graph + Canvas + WASM + Worker）
 > 真实样本：1 个 AI24（Illustrator 29.3 导出）已通过结构与基础矢量解析验证。
 > **仍不对其他 Illustrator 版本作出兼容性承诺。**
 
@@ -34,6 +34,7 @@
 | Scene Graph | `PARTIAL`* | `PARTIAL`* | `PARTIAL`* | 图层/组/复合路径/画板；多画板层级待完善 |
 | Canvas 渲染 | `PARTIAL`* | `PARTIAL`* | `PARTIAL`* | 路径/颜色/缩放/平移；渐变/专色为近似色 |
 | WASM 扫描加速 | `PARTIAL`* | `PARTIAL`* | `PARTIAL`* | 标记扫描约 1.8×；JS 回退 |
+| Worker 后台解析 | `PARTIAL`* | `PARTIAL`* | `PARTIAL`* | 进度/取消/文件切换；Worker 失败回退 |
 | PDF 预览图提取 | `UNSUPPORTED` | — | — | 按需求明确不采用 |
 
 \* 仅代表已有实现与（部分）真实样本证据，不代表所有版本完整兼容。
@@ -68,7 +69,7 @@
 | `synthetic-ai9-eps.bin` | EPS + AI9 ASCII85/zlib | 375 B | `fb8e940e9698a87dcfe0b8dabfa0a858538109d1c7a79d146534a54d96f7b9ee` | AI9 解码 + 1 个矩形 + BoundingBox |
 | `synthetic-truncated-pdf.bin` | 截断 PDF | 69 B | `3e8b6dfc327803823654001320aa7ee5c0f5b4f951cbaa067400d41e921921e7` | `TRUNCATED_FILE` 诊断、不崩溃 |
 
-自动化验证：`npm test`（13 个文件 / 95 项通过；真实样本缺失时集成测试自动跳过）。
+自动化验证：`npm test`（15 个文件 / 100 项通过）；`npm run test:e2e`（Chromium / Firefox / WebKit 共 15 项）。真实样本缺失时集成/E2E 自动跳过。
 
 ## 5. 已知限制
 
@@ -79,8 +80,9 @@
 5. 多画板的跨画板层级尚未完整重建；单画板使用事件层级。
 6. 三次曲线包围盒为控制点近似。
 7. AI24 zstd 使用 fzstd（JS）解码；WASM 扫描已启用，WASM zstd 待后续。
-8. 大文件解析仍在主线程（阶段 6 移入 Worker）。
+8. 大文件解析在 Worker 中执行；解析结果通过结构化克隆回传，尚未做超大 Scene Graph 分块传输。
 9. 画板坐标来自 DocumentData，Y 轴在渲染器中翻转处理。
+10. Playwright 基线在 Windows 生成；其他平台需重新生成。
 
 ## 6. 诚实性约束
 

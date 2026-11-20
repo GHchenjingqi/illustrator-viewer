@@ -1,7 +1,7 @@
 {
   "name": "ai-viewer-engine",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.7.0",
   "type": "module",
   "description": "浏览器本地 .ai 文件结构检测、解析与 Canvas 渲染引擎（Vue 3 + Vite）",
   "scripts": {
@@ -13,6 +13,8 @@
     "pretest": "node scripts/generate-synthetic-samples.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:update": "playwright test --update-snapshots",
     "inspect": "node scripts/inspect-ai.mjs",
     "generate:samples": "node scripts/generate-synthetic-samples.mjs"
   },
@@ -24,6 +26,7 @@
     "vue": "^3.5.45"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@vitejs/plugin-vue": "^6.0.11",
     "vite": "^8.3.8",
     "vitest": "^5.1.1"

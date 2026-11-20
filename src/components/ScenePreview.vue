@@ -5,7 +5,13 @@ import { CanvasRenderer } from '../renderer/CanvasRenderer.js'
 const props = defineProps({
   scene: { type: Object, default: null },
   report: { type: Object, default: null },
+  zoom: { type: Boolean, default: true },
+  draggable: { type: Boolean, default: true },
+  fullscreen: { type: Boolean, default: true },
+  canvasHeight: { type: [String, Number], default: 520 },
 })
+
+const emit = defineEmits(['zoom-change', 'artboard-change'])
 
 const canvas = ref(null)
 const wrapper = ref(null)
@@ -16,6 +22,7 @@ const renderStats = ref({})
 const dragging = ref(false)
 const lastPointer = ref({ x: 0, y: 0 })
 let resizeObserver = null
+let lastZoomPercent = null
 
 const artboards = computed(() => props.scene?.artboards ?? [])
 const artboard = computed(() => artboards.value[artboardIndex.value] ?? null)
@@ -48,6 +55,10 @@ function updateStats() {
   if (!renderer.value) return
   renderStats.value = { ...renderer.value.stats }
   scalePercent.value = renderer.value.getScalePercent()
+  if (scalePercent.value !== lastZoomPercent) {
+    lastZoomPercent = scalePercent.value
+    emit('zoom-change', scalePercent.value)
+  }
 }
 
 function render() {
@@ -76,10 +87,14 @@ function zoomBy(factor) {
 function changeArtboard() {
   renderer.value?.setArtboard(artboardIndex.value)
   updateStats()
+  emit('artboard-change', {
+    index: artboardIndex.value,
+    artboard: artboards.value[artboardIndex.value] ?? null,
+  })
 }
 
 function onWheel(event) {
-  if (!renderer.value) return
+  if (!renderer.value || !props.zoom) return
   const rect = canvas.value.getBoundingClientRect()
   const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12
   renderer.value.zoomAt(factor, event.clientX - rect.left, event.clientY - rect.top)
@@ -87,7 +102,7 @@ function onWheel(event) {
 }
 
 function onPointerDown(event) {
-  if (event.button !== 0) return
+  if (event.button !== 0 || !props.draggable) return
   dragging.value = true
   lastPointer.value = { x: event.clientX, y: event.clientY }
   canvas.value.setPointerCapture?.(event.pointerId)
@@ -157,6 +172,13 @@ onBeforeUnmount(() => {
   renderer.value?.destroy()
   renderer.value = null
 })
+
+defineExpose({
+  fit,
+  actualSize,
+  zoomBy,
+  render,
+})
 </script>
 
 <template>
@@ -179,12 +201,12 @@ onBeforeUnmount(() => {
             {{ item.name }}
           </option>
         </select>
-        <button class="mini-btn" title="缩小" @click="zoomBy(1 / 1.2)">−</button>
-        <span class="zoom-label mono">{{ scalePercent }}%</span>
-        <button class="mini-btn" title="放大" @click="zoomBy(1.2)">＋</button>
-        <button class="mini-btn" @click="fit">适应</button>
-        <button class="mini-btn" @click="actualSize">1:1</button>
-        <button class="mini-btn" @click="toggleFullscreen">全屏</button>
+        <button v-if="zoom" class="mini-btn" title="缩小" @click="zoomBy(1 / 1.2)">−</button>
+        <span v-if="zoom" class="zoom-label mono">{{ scalePercent }}%</span>
+        <button v-if="zoom" class="mini-btn" title="放大" @click="zoomBy(1.2)">＋</button>
+        <button v-if="zoom" class="mini-btn" @click="fit">适应</button>
+        <button v-if="zoom" class="mini-btn" @click="actualSize">1:1</button>
+        <button v-if="fullscreen" class="mini-btn" @click="toggleFullscreen">全屏</button>
       </div>
     </div>
 
@@ -193,7 +215,7 @@ onBeforeUnmount(() => {
       <span>{{ previewNote.join('；') || '部分效果未完整还原' }}</span>
     </div>
 
-    <div ref="wrapper" class="canvas-wrap">
+    <div ref="wrapper" class="canvas-wrap" :style="{ height: typeof canvasHeight === 'number' ? `${canvasHeight}px` : canvasHeight }">
       <canvas
         ref="canvas"
         class="preview-canvas"
@@ -204,7 +226,9 @@ onBeforeUnmount(() => {
         @pointerup="onPointerUp"
         @pointercancel="onPointerUp"
       ></canvas>
-      <span class="canvas-hint">滚轮缩放 · 拖拽平移</span>
+      <span class="canvas-hint">
+        {{ zoom && draggable ? '滚轮缩放 · 拖拽平移' : zoom ? '滚轮缩放' : draggable ? '拖拽平移' : '' }}
+      </span>
     </div>
 
     <div class="preview-footer">

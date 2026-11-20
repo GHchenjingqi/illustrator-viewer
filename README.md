@@ -3,7 +3,7 @@
 > 浏览器本地运行的 Adobe Illustrator `.ai` 文件解析、Scene Graph 与 Canvas 预览引擎。
 > 自主实现 JavaScript 解析链路 + Rust/WASM 加速，不使用 PDF.js、Photopea、Ghostscript 等第三方预览/转换引擎。
 
-**当前状态：阶段 1–5 已完成。真实 AI24 样本（Illustrator 29.3）已能解析并在 Canvas 中预览。**
+**当前状态：阶段 1–7 已完成。真实 AI24 样本（Illustrator 29.3）已能在 Worker 中解析，并在 Canvas 中预览。**
 
 开发页面：`npm run dev` 后打开终端输出地址（默认 `http://localhost:5173`）。
 
@@ -69,6 +69,21 @@ File / Blob / ArrayBuffer
 - 512 KB 扫描：约 **1.8×**。
 - 包围盒 WASM 接口已实现并测试，但逐对象调用受内存拷贝开销影响，主链路默认仍用 JS；后续可做批量接口。
 
+### 阶段 6：Worker 与组件
+
+- `AIWorker` + `AIWorkerClient`：后台解析、进度、取消、任务 ID 防旧结果覆盖。
+- Worker 失败自动回退主线程。
+- 可复用 `AiViewer.vue`：file/width/height/zoom/draggable/fullscreen/maxFileSize/worker props，完整事件。
+- ScenePreview 支持 zoom/draggable/fullscreen 开关与 zoom/artboard 事件。
+
+### 阶段 7：兼容性与性能
+
+- Playwright：Chromium / Firefox / WebKit 三浏览器，15 项 E2E。
+- Canvas 图像对比基线（合成 AI12）。
+- 真实 AI24 样本在三种浏览器均渲染 841 图形。
+- 文件切换连续测试：旧结果不覆盖新结果。
+- 性能报告：`docs/PERFORMANCE.md`。
+
 ## 3. 真实样本验证
 
 本地样本：`tests/fixtures/real/lengdong-logo.ai`（默认不提交 Git）
@@ -92,9 +107,8 @@ File / Blob / ArrayBuffer
 - 渐变颜色表/停靠点的完整解析与真实渐变渲染（当前为近似纯色）
 - 专色颜色空间精确还原（`Xa` 7 分量语义待确认）
 - 嵌入图片解码、文字对象、裁剪路径、透明度组、图案/画笔的最终渲染
-- Worker 后台解析与任务取消协议（阶段 6）
-- Playwright 图像对比、Firefox / WebKit 测试（阶段 7）
 - 自研 WASM zstd 解压（当前 fzstd JS）
+- 超大文件（>100 MB）、更多 AI 版本、跨平台自动化图像基线
 
 ## 5. 快速开始
 
@@ -109,7 +123,9 @@ npm run dev
 其他命令：
 
 ```bash
-npm test                    # 13 个测试文件 / 95 项测试
+npm test                    # 15 个测试文件 / 100 项测试
+npm run test:e2e            # Playwright 三浏览器 15 项 E2E
+npm run test:e2e:update     # 重新生成截图基线
 npm run build               # 前端生产构建
 npm run build:wasm          # 重新构建 Rust/WASM 并复制到 public/wasm
 npm run benchmark:wasm      # WASM vs JS 基准
@@ -143,6 +159,7 @@ npm run inspect -- tests/fixtures/real/your-file.ai --write
 ├── src/
 │   ├── components/
 │   │   ├── AiInspector.vue
+│   │   ├── AiViewer.vue
 │   │   └── ScenePreview.vue
 │   ├── core/
 │   │   ├── AIFileReader.js
@@ -169,6 +186,9 @@ npm run inspect -- tests/fixtures/real/your-file.ai --write
 │   ├── wasm/
 │   │   ├── WasmLoader.js
 │   │   └── WasmBridge.js
+│   ├── worker/
+│   │   ├── AIWorker.js
+│   │   └── AIWorkerClient.js
 │   ├── utils/
 │   ├── index.js
 │   └── styles.css
@@ -191,8 +211,8 @@ npm run inspect -- tests/fixtures/real/your-file.ai --write
 | 3 | Scene Graph | ✅ |
 | 4 | Canvas Renderer 与预览交互 | ✅（部分颜色近似） |
 | 5 | WebAssembly 扫描加速 | ✅（JS 回退） |
-| 6 | Worker 与 AiViewer.vue 组件化 | ⏳ 下一步 |
-| 7 | 兼容性与性能测试 | 计划 |
+| 6 | Worker 与 AiViewer.vue 组件化 | ✅ |
+| 7 | 兼容性与性能测试 | ✅（三浏览器 E2E） |
 
 阶段报告：
 
@@ -201,6 +221,9 @@ npm run inspect -- tests/fixtures/real/your-file.ai --write
 - [`docs/STAGE-3-REPORT.md`](docs/STAGE-3-REPORT.md)
 - [`docs/STAGE-4-REPORT.md`](docs/STAGE-4-REPORT.md)
 - [`docs/STAGE-5-REPORT.md`](docs/STAGE-5-REPORT.md)
+- [`docs/STAGE-6-REPORT.md`](docs/STAGE-6-REPORT.md)
+- [`docs/STAGE-7-REPORT.md`](docs/STAGE-7-REPORT.md)
+- [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)
 
 ## 9. 设计约束
 

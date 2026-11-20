@@ -1,10 +1,13 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { AIParserEngine } from '../core/AIParserEngine.js'
+import { AIWorkerClient } from '../worker/AIWorkerClient.js'
 import ScenePreview from './ScenePreview.vue'
 import { formatBytes, formatOffset, formatPercent, truncateMiddle } from '../utils/format.js'
 
 const engine = new AIParserEngine()
+const workerClient = new AIWorkerClient({ fallbackEngine: engine })
+const workerUsed = ref(false)
 const fileInput = ref(null)
 const report = ref(null)
 const error = ref(null)
@@ -36,8 +39,8 @@ const ROADMAP = [
   { n: 3, title: 'Scene Graph', desc: '图层 / 组 / 复合路径 / 画板', state: 'done' },
   { n: 4, title: 'Canvas Renderer', desc: '矢量预览 / 缩放平移 / 部分颜色', state: 'done' },
   { n: 5, title: 'WebAssembly', desc: '多模式扫描加速 / JS 回退', state: 'done' },
-  { n: 6, title: 'Worker 与组件', desc: '后台解析 / AiViewer.vue', state: 'next' },
-  { n: 7, title: '兼容性与性能', desc: '多版本 / 多浏览器测试', state: 'todo' },
+  { n: 6, title: 'Worker 与组件', desc: '后台解析 / AiViewer.vue', state: 'done' },
+  { n: 7, title: '兼容性与性能', desc: 'Playwright / 三浏览器 / 图像对比', state: 'done' },
 ]
 
 const statusText = computed(() => {
@@ -178,9 +181,10 @@ async function handleFile(file, meta = {}) {
   error.value = null
   synthetic.value = Boolean(meta.synthetic)
   copied.value = false
+  workerUsed.value = false
   progress.value = { phase: 'read', ratio: 0, message: '读取文件…' }
 
-  const result = await engine.parse(file, {
+  const result = await workerClient.parse(file, {
     signal: controller.signal,
     onProgress: (event) => {
       progress.value = { ...event }
@@ -189,10 +193,11 @@ async function handleFile(file, meta = {}) {
 
   if (controller.signal.aborted) return
   busy.value = false
+  workerUsed.value = workerClient.lastTransport === 'worker'
 
   if (result.ok) {
     report.value = result.report
-    progress.value = { phase: 'done', ratio: 1, message: '结构检测完成' }
+    progress.value = { phase: 'done', ratio: 1, message: '解析完成' }
   } else if (!result.aborted) {
     error.value = result.error
   }
@@ -338,6 +343,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('dragover', preventWindowFileDrop)
   window.removeEventListener('drop', preventWindowFileDrop)
   abortController.value?.abort()
+  workerClient.terminate()
 })
 </script>
 
@@ -349,7 +355,7 @@ onBeforeUnmount(() => {
         <div>
           <div class="brand-title">
             AI Viewer Engine
-            <span class="stage-badge">STAGE 5 / 7</span>
+            <span class="stage-badge">STAGE 7 / 7</span>
           </div>
           <div class="brand-sub">Illustrator .ai 解析 · Scene Graph · Canvas 预览 · WASM</div>
         </div>
@@ -457,6 +463,7 @@ onBeforeUnmount(() => {
               </span>
               <span v-if="report.scene" class="chip accent">场景 {{ report.scene.stats.shapes }} 图形</span>
               <span v-if="report.engine?.wasmUsed" class="chip accent">WASM 扫描</span>
+      <span v-if="workerUsed" class="chip accent">Worker</span>
             </div>
           </div>
           <div class="summary-metrics">
@@ -995,7 +1002,7 @@ onBeforeUnmount(() => {
         <section class="panel roadmap">
           <div class="panel-head">
             <h2 class="panel-title">开发路线</h2>
-            <span class="muted small">阶段 6 下一步</span>
+            <span class="muted small">阶段 7 已完成</span>
           </div>
           <ol class="roadmap-list">
             <li v-for="stage in ROADMAP" :key="stage.n" :class="stage.state">
@@ -1014,7 +1021,7 @@ onBeforeUnmount(() => {
     </main>
 
     <footer class="footer">
-      <span>AI Viewer Engine v0.5.0 · Stage 5 · JS 解析 + Canvas + WASM</span>
+      <span>AI Viewer Engine v0.7.0 · Stage 7 · JS 解析 + Canvas + WASM + Worker</span>
       <span class="footer-sep">·</span>
       <span>WASM 仅作为后续加速项，不是运行前提</span>
     </footer>
