@@ -44,6 +44,7 @@ File / Blob / ArrayBuffer
 - 绘图段识别：`%AI5_BeginLayer`、`%%BeginData` 二进制块跳过。
 - 标准 PostScript + AI 私有操作符：`C/L/H/V/Y/F/N`、`Lb/Ln`、`u/U/*u/*U`、`Bb/BB/Bg/Xm/Bc/Bm`、`Xa/XA` 等。
 - 提取路径、线段、矩形、复合子路径、RGB/CMYK/Gray、渐变/专色标记、线型、CTM、包围盒。
+- 渐变停靠点：解析 `%_BS` 行的位置与 RGB/CMYK，Canvas 用线性渐变渲染；方向/几何仍标记为近似。
 - 原生画板：DocumentData `ArtboardArray` 名称 / PositionPoint1/2 / 矩形；BoundingBox/MediaBox 回退。
 
 ### 阶段 3：Scene Graph
@@ -51,14 +52,14 @@ File / Blob / ArrayBuffer
 - `Document` → `Artboard` → `Layer` / `Group` / `Compound` → `Shape` 层级。
 - 相对变换：用逆矩阵把绝对 CTM 转换为组内相对变换，避免重复变换。
 - 图层事件、组事件、复合路径事件、画板归属。
-- 渐变/专色填充：标记 `approximate` + 近似 RGB，**不冒充完整还原**。
+- 渐变/专色标记 `approximate` + 停靠点/近似 RGB；**不冒充完整还原**。
 
 ### 阶段 4：Canvas 预览
 
 - 原生 Canvas 2D、DPR 高清适配。
 - 适应窗口、1:1、滚轮缩放、拖拽平移、全屏、多画板切换。
 - 填充 / 描边 / 虚线 / evenodd / 复合路径 / 非打印跳过。
-- 明确“部分预览”提示：渐变/专色近似色、嵌入图片/裁剪/透明度未渲染。
+- 明确“部分预览”提示：渐变/专色使用近似几何/颜色，嵌入图片/裁剪/透明度未渲染。
 
 ### 阶段 5：WASM 加速
 
@@ -97,14 +98,14 @@ File / Blob / ArrayBuffer
 | Scene Graph | 1 画板 / 2 图层 / 27 组 / 39 复合路径 / 841 图形 |
 | 画板 | 原生「画板 1」`1250 × 700` |
 | 颜色 | 540 渐变 / 252 专色或自定义 / 48 Gray / 1 无填充 |
-| 渲染 | Canvas 841 图形；792 个使用近似色，明确提示 |
+| 渲染 | Canvas 841 图形；792 个使用近似渐变/颜色，明确提示 |
 | 性能 | 完整解析约 350 ms；WASM 扫描 569 KB 一次调用 |
 
 > 只有 1 个 AI24 真实样本；AI 8 / 10 / CS / CS6 / 其他 CC 版本仍需补充。
 
 ## 4. 明确未实现
 
-- 渐变颜色表/停靠点的完整解析与真实渐变渲染（当前为近似纯色）
+- 渐变几何（方向/径向/矩阵）与真实渐变完全还原（当前使用停靠点 + 近似几何）
 - 专色颜色空间精确还原（`Xa` 7 分量语义待确认）
 - 嵌入图片解码、文字对象、裁剪路径、透明度组、图案/画笔的最终渲染
 - 自研 WASM zstd 解压（当前 fzstd JS）
@@ -123,7 +124,7 @@ npm run dev
 其他命令：
 
 ```bash
-npm test                    # 15 个测试文件 / 100 项测试
+npm test                    # 16 个测试文件 / 103 项测试
 npm run test:e2e            # Playwright 三浏览器 15 项 E2E
 npm run test:e2e:update     # 重新生成截图基线
 npm run build               # 前端生产构建
@@ -231,7 +232,7 @@ npm run inspect -- tests/fixtures/real/your-file.ai --write
 - 不引入第三方 AI 预览 SDK，不使用 PDF.js。
 - 不读取 PDF 预览图冒充原生解析。
 - 不执行 AI/PostScript 过程体、文件/网络/系统操作。
-- 渐变/专色未完整解析时使用近似色并明确标注，不声称完整还原。
+- 渐变/专色未完整还原时使用近似几何/颜色并明确标注，不声称完整还原。
 - WASM 只做加速，JavaScript 基础链路始终可独立运行。
 
 ## 10. 研究来源与第三方依赖

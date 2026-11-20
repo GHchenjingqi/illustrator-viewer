@@ -8,7 +8,7 @@
 
 | 层级 | 工具 | 数量 | 内容 |
 |---|---|---|---|
-| 单元测试 | Vitest | 15 个文件 / 100 项 | 读取、二进制、ASCII85、zlib、AI24、词法、解析、矢量、画板、Scene Graph、渲染、WASM、Worker |
+| 单元测试 | Vitest | 16 个文件 / 103 项 | 读取、二进制、ASCII85、zlib、AI24、词法、解析、矢量、画板、Scene Graph、渲染、WASM、Worker、渐变 |
 | 真实样本集成 | Vitest | 1 项（本地） | 真实 AI24：解压、841 矢量、原生画板、WASM |
 | 浏览器 E2E | Playwright | 15 项（5 场景 × 3 浏览器） | 解析、Canvas、图像对比、工具栏、文件切换、损坏文件、真实样本 |
 | 性能基准 | Node | 1 项 | WASM vs JS 扫描/包围盒 |

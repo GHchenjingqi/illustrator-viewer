@@ -49,6 +49,12 @@ function createContextRecorder() {
     fill: (...args) => calls.push(['fill', ...args]),
     stroke: (...args) => calls.push(['stroke', ...args]),
     setLineDash: (...args) => calls.push(['setLineDash', ...args]),
+    createLinearGradient: (...args) => {
+      calls.push(['createLinearGradient', ...args])
+      return {
+        addColorStop: (...stopArgs) => calls.push(['addColorStop', ...stopArgs]),
+      }
+    },
     globalAlpha: 1,
     fillStyle: '',
     strokeStyle: '',
@@ -225,6 +231,24 @@ describe('CanvasRenderer', () => {
       sceneWith([shape({ fill: { type: 'gradient', approxColor: [0, 0.5, 1] } })]),
     )
     expect(renderer.stats.approximateShapes).toBe(1)
+
+    renderer.setDocument(
+      sceneWith([
+        shape({
+          fill: {
+            type: 'gradient',
+            approxColor: [0, 0.5, 1],
+            angle: 90,
+            stops: [
+              { offset: 0, rgb: [0, 0.4, 0.6] },
+              { offset: 1, rgb: [0.1, 0.8, 0.9] },
+            ],
+          },
+        }),
+      ]),
+    )
+    expect(context.calls.some(([name]) => name === 'createLinearGradient')).toBe(true)
+    expect(context.calls.filter(([name]) => name === 'addColorStop')).toHaveLength(2)
   })
 
   it('跳过非打印图形', () => {

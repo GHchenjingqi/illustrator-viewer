@@ -37,7 +37,7 @@ const approximate = computed(() => {
 const previewNote = computed(() => {
   const notes = []
   if ((props.scene?.approximateFillCount ?? 0) > 0) {
-    notes.push(`${props.scene.approximateFillCount} 个渐变/专色使用近似纯色`)
+    notes.push(`${props.scene.approximateFillCount} 个渐变/专色使用近似颜色`)
   }
   if ((props.report?.graphics?.stats?.rasterImages ?? 0) > 0) {
     notes.push(`${props.report.graphics.stats.rasterImages} 个嵌入图片未渲染`)

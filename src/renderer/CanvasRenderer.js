@@ -9,9 +9,14 @@
  * - 复合路径通过 combined Path2D 绘制
  */
 
-import { resolvePaintColor } from '../engine/ColorEngine.js'
+import { resolvePaintColor, rgbToCss } from '../engine/ColorEngine.js'
 import { IDENTITY_MATRIX } from '../engine/TransformEngine.js'
-import { buildPath2D, buildCompoundPath2D } from './PathRenderer.js'
+import {
+  buildPath2D,
+  buildCompoundPath2D,
+  computePathBounds,
+  computeShapesBounds,
+} from './PathRenderer.js'
 
 const LINE_CAPS = ['butt', 'round', 'square']
 const LINE_JOINS = ['miter', 'round', 'bevel']
@@ -48,6 +53,33 @@ export function screenToWorld(viewport, artboard, x, y) {
     x: artboard.x + (x - viewport.originX) / viewport.scale,
     y: artboard.y + artboard.height - (y - viewport.originY) / viewport.scale,
   }
+}
+
+export function createGradientFill(context, paint, bounds) {
+  if (!paint?.stops?.length || !bounds) return null
+  if (typeof context.createLinearGradient !== 'function') return null
+  const { x, y, width, height } = bounds
+  if (!(width > 0) || !(height > 0)) return null
+
+  const centerX = x + width / 2
+  const centerY = y + height / 2
+  const angle = ((paint.angle ?? 90) * Math.PI) / 180
+  const radius = Math.max(width, height) / 2
+  const dx = Math.cos(angle) * radius
+  const dy = Math.sin(angle) * radius
+
+  const gradient = context.createLinearGradient(
+    centerX - dx,
+    centerY - dy,
+    centerX + dx,
+    centerY + dy,
+  )
+
+  const stops = [...paint.stops].sort((a, b) => a.offset - b.offset)
+  for (const stop of stops) {
+    gradient.addColorStop(Math.min(Math.max(stop.offset, 0), 1), rgbToCss(stop.rgb))
+  }
+  return gradient
 }
 
 export class CanvasRenderer {
@@ -277,6 +309,10 @@ export class CanvasRenderer {
     const first = shapes[0]
     const fill = resolvePaintColor(first.fill)
     const stroke = resolvePaintColor(first.stroke)
+    const gradient =
+      first.fill?.type === 'gradient'
+        ? createGradientFill(this.ctx, first.fill, computeShapesBounds(shapes))
+        : null
     const fillRule = shapes.some((shape) => shape.fillRule === 'evenodd') ? 'evenodd' : 'nonzero'
     const paintMismatch =
       shapes.length > 1 &&
@@ -293,7 +329,10 @@ export class CanvasRenderer {
     }
 
     this.ctx.globalAlpha = opacity
-    if (fill.css) {
+    if (gradient) {
+      this.ctx.fillStyle = gradient
+      this.ctx.fill(path, fillRule)
+    } else if (fill.css) {
       this.ctx.fillStyle = fill.css
       this.ctx.fill(path, fillRule)
     }
@@ -319,12 +358,19 @@ export class CanvasRenderer {
     const fill = resolvePaintColor(shape.fill)
     const stroke = resolvePaintColor(shape.stroke)
     const fillRule = shape.fillRule === 'evenodd' ? 'evenodd' : 'nonzero'
+    const gradient =
+      shape.fill?.type === 'gradient' && !shape.nonPrinting
+        ? createGradientFill(this.ctx, shape.fill, computePathBounds(shape.subpaths))
+        : null
 
     this.ctx.save()
     this.ctx.transform(...(shape.transform ?? IDENTITY_MATRIX))
     this.ctx.globalAlpha = opacity
 
-    if (fill.css) {
+    if (gradient) {
+      this.ctx.fillStyle = gradient
+      this.ctx.fill(path, fillRule)
+    } else if (fill.css) {
       this.ctx.fillStyle = fill.css
       this.ctx.fill(path, fillRule)
     }

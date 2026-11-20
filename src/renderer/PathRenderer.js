@@ -6,6 +6,72 @@
 
 import { IDENTITY_MATRIX, transformPoint } from '../engine/TransformEngine.js'
 
+function visitBounds(points, matrix, state) {
+  for (const segment of points) {
+    if (segment.type === 'C') {
+      for (const point of [
+        [segment.x1, segment.y1],
+        [segment.x2, segment.y2],
+      ]) {
+        const transformed = transformPoint(matrix, point[0], point[1])
+        state.minX = Math.min(state.minX, transformed.x)
+        state.minY = Math.min(state.minY, transformed.y)
+        state.maxX = Math.max(state.maxX, transformed.x)
+        state.maxY = Math.max(state.maxY, transformed.y)
+        state.count += 1
+      }
+    }
+    const transformed = transformPoint(matrix, segment.x, segment.y)
+    state.minX = Math.min(state.minX, transformed.x)
+    state.minY = Math.min(state.minY, transformed.y)
+    state.maxX = Math.max(state.maxX, transformed.x)
+    state.maxY = Math.max(state.maxY, transformed.y)
+    state.count += 1
+  }
+}
+
+/**
+ * 计算路径在指定矩阵下的包围盒（控制点近似）。
+ * @param {Array<{ segments: object[] }>} subpaths
+ * @param {number[]} [matrix]
+ */
+export function computePathBounds(subpaths, matrix = IDENTITY_MATRIX) {
+  const state = {
+    minX: Infinity,
+    minY: Infinity,
+    maxX: -Infinity,
+    maxY: -Infinity,
+    count: 0,
+  }
+  for (const subpath of subpaths ?? []) visitBounds(subpath.segments ?? [], matrix, state)
+  if (state.count === 0) return null
+  return {
+    x: state.minX,
+    y: state.minY,
+    width: state.maxX - state.minX,
+    height: state.maxY - state.minY,
+  }
+}
+
+/** 计算复合组内多个图形（含各自相对变换）的合并包围盒。 */
+export function computeShapesBounds(shapes) {
+  let result = null
+  for (const shape of shapes ?? []) {
+    const bounds = computePathBounds(shape.subpaths, shape.transform ?? IDENTITY_MATRIX)
+    if (!bounds) continue
+    if (!result) {
+      result = { ...bounds }
+    } else {
+      const minX = Math.min(result.x, bounds.x)
+      const minY = Math.min(result.y, bounds.y)
+      const maxX = Math.max(result.x + result.width, bounds.x + bounds.width)
+      const maxY = Math.max(result.y + result.height, bounds.y + bounds.height)
+      result = { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
+    }
+  }
+  return result
+}
+
 /**
  * @param {Array<{ closed: boolean, segments: object[] }>} subpaths
  * @param {number[]} [matrix]

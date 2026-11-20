@@ -793,8 +793,17 @@ export class PostScriptParser {
         this.stack.length = 0
         break
       case 'Bg': {
-        const name = [...this.stack].reverse().find((value) => typeof value === 'string')
-        if (this.currentGradient) this.currentGradient.name = name ? decodeMaybeUtf8(name) : null
+        const values = this.stack.slice()
+        const name = [...values].reverse().find((value) => typeof value === 'string')
+        const numbers = values.filter((value) => typeof value === 'number')
+        if (this.currentGradient) {
+          this.currentGradient.name = name ? decodeMaybeUtf8(name) : null
+          this.currentGradient.params = numbers
+          const angle = numbers.find(
+            (value) => Math.abs(value) >= 10 && Math.abs(value) <= 360,
+          )
+          this.currentGradient.angle = Number.isFinite(angle) ? angle : null
+        }
         this.stack.length = 0
         break
       }
@@ -1194,6 +1203,8 @@ export class PostScriptParser {
             type: 'gradient',
             name: this.currentGradient?.name ?? null,
             matrices: this.currentGradient?.matrices ?? [],
+            params: this.currentGradient?.params ?? [],
+            angle: this.currentGradient?.angle ?? null,
           }
         : clonePaint(graphics.fillColor)
       : null

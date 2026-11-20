@@ -69,8 +69,10 @@ function resolvePaint(paint, gradients) {
       ...paint,
       approximate: true,
       approxColor: definition?.approxColor ?? [0.5, 0.5, 0.5],
+      stops: definition?.stops ?? [],
+      angle: paint.angle ?? 90,
       gradientDefinition: definition ?? null,
-      note: '渐变颜色表未完整解析，使用近似色预览',
+      note: '渐变停靠点已解析，渐变几何仍为近似；渲染时明确标记',
     }
   }
   return { ...paint, approximate: true, approxColor: [0.5, 0.5, 0.5] }
