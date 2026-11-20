@@ -313,8 +313,13 @@ export class CanvasRenderer {
 
     if (isClipMask) {
       // AI 复合组中“黑色外轮廓 + 渐变内容”常见于剪裁蒙版：
-      // 外轮廓只作为 clip，不绘制黑色填充；用渐变填充整个轮廓。
-      const clipPath = buildPath2D(first.subpaths, first.transform ?? IDENTITY_MATRIX, this.Path2DImpl)
+      // 外轮廓只作为 clip，不绘制黑色填充；内孔路径必须一起参与复合路径，
+      // 否则 R 的上半部分会被渐变填满，丢失镂空。
+      const clipPath = buildCompoundPath2D(
+        [first, gradientChild],
+        IDENTITY_MATRIX,
+        this.Path2DImpl,
+      )
       const gradient = createGradientFill(
         this.ctx,
         gradientChild.fill,
@@ -325,10 +330,10 @@ export class CanvasRenderer {
         const fill = resolvePaintColor(gradientChild.fill)
         if (gradient) {
           this.ctx.fillStyle = gradient
-          this.ctx.fill(clipPath, first.fillRule === 'evenodd' ? 'evenodd' : 'nonzero')
+          this.ctx.fill(clipPath, 'evenodd')
         } else if (fill.css) {
           this.ctx.fillStyle = fill.css
-          this.ctx.fill(clipPath, first.fillRule === 'evenodd' ? 'evenodd' : 'nonzero')
+          this.ctx.fill(clipPath, 'evenodd')
         }
         this.ctx.globalAlpha = 1
         this.stats.shapesDrawn += 1

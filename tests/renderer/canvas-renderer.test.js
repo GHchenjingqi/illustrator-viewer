@@ -296,6 +296,9 @@ describe('CanvasRenderer', () => {
     expect(renderer.stats.shapesDrawn).toBe(1)
     expect(context.calls.some(([name]) => name === 'createLinearGradient')).toBe(true)
     expect(context.calls.filter(([name]) => name === 'addColorStop')).toHaveLength(2)
+    const fillCall = context.calls.find(([name]) => name === 'fill')
+    expect(fillCall?.[2]).toBe('evenodd')
+    expect(fillCall?.[1]?.commands.filter(([command]) => command === 'M')).toHaveLength(2)
   })
 
   it('缩放到指定比例', () => {
