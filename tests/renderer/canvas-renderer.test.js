@@ -7,6 +7,7 @@ import {
 } from '../../src/renderer/CanvasRenderer.js'
 import { buildPath2D, buildCompoundPath2D } from '../../src/renderer/PathRenderer.js'
 import { resolvePaintColor } from '../../src/engine/ColorEngine.js'
+import { IDENTITY_MATRIX } from '../../src/engine/TransformEngine.js'
 
 class FakePath2D {
   constructor() {
@@ -257,6 +258,44 @@ describe('CanvasRenderer', () => {
     renderer.setDocument(sceneWith([shape({ nonPrinting: true })]))
     expect(renderer.stats.shapesSkipped).toBe(1)
     expect(renderer.stats.shapesDrawn).toBe(0)
+  })
+
+  it('把黑色外轮廓 + 渐变子图形按剪裁蒙版绘制', () => {
+    const context = createContextRecorder()
+    const renderer = new CanvasRenderer(fakeCanvas(context), { Path2D: FakePath2D })
+    const mask = shape({
+      id: 'mask',
+      fill: { type: 'gray', values: [0] },
+      transform: IDENTITY_MATRIX,
+    })
+    const gradient = shape({
+      id: 'gradient',
+      fill: {
+        type: 'gradient',
+        approxColor: [0, 0.5, 1],
+        angle: 90,
+        stops: [
+          { offset: 0, rgb: [0, 0.4, 0.6] },
+          { offset: 1, rgb: [0.1, 0.8, 0.9] },
+        ],
+      },
+      transform: IDENTITY_MATRIX,
+      bounds: { x: 2, y: 2, width: 4, height: 4 },
+    })
+    const compound = {
+      type: 'group',
+      role: 'compound',
+      transform: IDENTITY_MATRIX,
+      opacity: 1,
+      visible: true,
+      children: [mask, gradient],
+    }
+    renderer.setDocument(sceneWith([compound]))
+
+    expect(renderer.stats.clipMaskGroups).toBe(1)
+    expect(renderer.stats.shapesDrawn).toBe(1)
+    expect(context.calls.some(([name]) => name === 'createLinearGradient')).toBe(true)
+    expect(context.calls.filter(([name]) => name === 'addColorStop')).toHaveLength(2)
   })
 
   it('缩放到指定比例', () => {

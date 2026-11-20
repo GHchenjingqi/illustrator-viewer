@@ -235,7 +235,8 @@ defineExpose({
       <span class="muted small">
         已绘制 {{ renderStats.shapesDrawn ?? 0 }} 个图形 ·
         {{ renderStats.groupsVisited ?? 0 }} 个组 ·
-        {{ renderStats.compoundGroups ?? 0 }} 个复合路径
+        {{ renderStats.compoundGroups ?? 0 }} 个复合路径 ·
+        {{ renderStats.clipMaskGroups ?? 0 }} 个剪裁蒙版
       </span>
       <span v-if="renderStats.approximateShapes" class="approx-note">
         其中 {{ renderStats.approximateShapes }} 个使用近似颜色

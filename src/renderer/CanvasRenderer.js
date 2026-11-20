@@ -110,6 +110,7 @@ export class CanvasRenderer {
       shapesSkipped: 0,
       approximateShapes: 0,
       compoundGroups: 0,
+      clipMaskGroups: 0,
       groupsVisited: 0,
     }
   }
@@ -224,6 +225,7 @@ export class CanvasRenderer {
       shapesSkipped: 0,
       approximateShapes: 0,
       compoundGroups: 0,
+      clipMaskGroups: 0,
       groupsVisited: 0,
     }
 
@@ -300,13 +302,48 @@ export class CanvasRenderer {
       return
     }
 
+    const first = shapes[0]
+    const gradientChild = shapes
+      .slice(1)
+      .find((shape) => shape.fill?.type === 'gradient' && shape.fill?.stops?.length > 0)
+    const isClipMask =
+      gradientChild &&
+      first.fill?.type === 'gray' &&
+      (first.fill.values?.[0] ?? 1) <= 0.05
+
+    if (isClipMask) {
+      // AI 复合组中“黑色外轮廓 + 渐变内容”常见于剪裁蒙版：
+      // 外轮廓只作为 clip，不绘制黑色填充；用渐变填充整个轮廓。
+      const clipPath = buildPath2D(first.subpaths, first.transform ?? IDENTITY_MATRIX, this.Path2DImpl)
+      const gradient = createGradientFill(
+        this.ctx,
+        gradientChild.fill,
+        computePathBounds(first.subpaths, first.transform ?? IDENTITY_MATRIX),
+      )
+      if (clipPath) {
+        this.ctx.globalAlpha = opacity
+        const fill = resolvePaintColor(gradientChild.fill)
+        if (gradient) {
+          this.ctx.fillStyle = gradient
+          this.ctx.fill(clipPath, first.fillRule === 'evenodd' ? 'evenodd' : 'nonzero')
+        } else if (fill.css) {
+          this.ctx.fillStyle = fill.css
+          this.ctx.fill(clipPath, first.fillRule === 'evenodd' ? 'evenodd' : 'nonzero')
+        }
+        this.ctx.globalAlpha = 1
+        this.stats.shapesDrawn += 1
+        this.stats.approximateShapes += 1
+        this.stats.clipMaskGroups += 1
+        return
+      }
+    }
+
     const path = buildCompoundPath2D(shapes, IDENTITY_MATRIX, this.Path2DImpl)
     if (!path) {
       this.stats.shapesSkipped += shapes.length
       return
     }
 
-    const first = shapes[0]
     const fill = resolvePaintColor(first.fill)
     const stroke = resolvePaintColor(first.stroke)
     const gradient =
