@@ -27,7 +27,7 @@ import { decodeLatin1 } from '../utils/encoding.js'
 const now = () => globalThis.performance?.now?.() ?? Date.now()
 
 export const ENGINE_STAGE = 7
-export const ENGINE_VERSION = '0.8.0'
+export const ENGINE_VERSION = '0.9.0'
 
 const MAX_GRAPHICS_TEXT_BYTES = 16 * 1024 * 1024
 const POSTSCRIPT_BODY_MARKERS = ['%%EndSetup', '%%EndProlog', '%AI5_BeginLayer', '%%BeginScript']

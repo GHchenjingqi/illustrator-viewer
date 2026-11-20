@@ -30,9 +30,12 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: false,
     lib: {
-      entry: resolve(root, 'src/index.js'),
+      entry: {
+        'illustrator-viewer': resolve(root, 'src/index.js'),
+        'illustrator-viewer-core': resolve(root, 'src/headless.js'),
+      },
       formats: ['es'],
-      fileName: () => 'illustrator-viewer.js',
+      fileName: (format, entryName) => `${entryName}.js`,
       cssFileName: 'style',
     },
     rollupOptions: {

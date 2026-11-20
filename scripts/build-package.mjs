@@ -52,6 +52,7 @@ if (build.status !== 0) {
 
 const artifacts = [
   ['dist/illustrator-viewer.js', 10_000],
+  ['dist/illustrator-viewer-core.js', 500],
   ['dist/style.css', 100],
   ['dist/wasm/ai_viewer_wasm.wasm', 1_000],
 ]
@@ -63,6 +64,18 @@ if (/from\s+["']fzstd["']/.test(bundle)) {
   fail('入口产物仍包含未打包的 fzstd 依赖')
 }
 
+// 无框架入口必须完全脱离 Vue，供 React 等宿主直接使用。
+const coreBundle = readFileSync(resolve(root, 'dist/illustrator-viewer-core.js'), 'utf8')
+const coreImports = [...coreBundle.matchAll(/from\s*["'](\.\/[^"']+)["']/g)].map(
+  (match) => match[1],
+)
+for (const file of ['dist/illustrator-viewer-core.js', ...coreImports.map((item) => `dist/${item}`)]) {
+  const source = readFileSync(resolve(root, file), 'utf8')
+  if (/from\s*["']vue["']/.test(source)) {
+    fail(`${file} 仍依赖 Vue`)
+  }
+}
+
 if (existsSync(resolve(root, 'dist/samples'))) {
   fail('发布产物不应包含演示用 public/samples')
 }
@@ -70,6 +83,7 @@ if (existsSync(resolve(root, 'dist/samples'))) {
 const pkg = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'))
 if (pkg.private) fail('package.json 仍标记为 private，无法发布')
 if (!pkg.exports?.['.']?.import) fail('package.json 缺少 exports["."].import')
+if (!pkg.exports?.['./core']?.import) fail('package.json 缺少 exports["./core"].import')
 if (!pkg.files?.includes('dist')) fail('package.json files 未包含 dist')
 
 console.log('\n✓ npm 包构建完成')

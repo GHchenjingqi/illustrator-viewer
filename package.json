@@ -1,6 +1,6 @@
 {
   "name": "illustrator-viewer",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Illustrator Viewer - 浏览器本地解析 Adobe Illustrator .ai 文件并渲染 Canvas 预览（Vue 3 / JS + WASM）。",
   "type": "module",
   "license": "MIT",
@@ -41,6 +41,10 @@
     ".": {
       "import": "./dist/illustrator-viewer.js",
       "default": "./dist/illustrator-viewer.js"
+    },
+    "./core": {
+      "import": "./dist/illustrator-viewer-core.js",
+      "default": "./dist/illustrator-viewer-core.js"
     },
     "./style.css": "./dist/style.css",
     "./wasm/ai_viewer_wasm.wasm": "./dist/wasm/ai_viewer_wasm.wasm",

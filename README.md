@@ -9,7 +9,7 @@
 [![Vue 3](https://img.shields.io/badge/vue-3-42b883?logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![WASM](https://img.shields.io/badge/WASM-Rust-654ff0?logo=webassembly&logoColor=white)](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/wasm-src/src/lib.rs)
 
-[![Unit tests](https://img.shields.io/badge/tests-111%20passed-34d399)](https://github.com/GHchenjingqi/illustrator-viewer/tree/main/tests)
+[![Unit tests](https://img.shields.io/badge/tests-112%20passed-34d399)](https://github.com/GHchenjingqi/illustrator-viewer/tree/main/tests)
 [![E2E tests](https://img.shields.io/badge/E2E-21%20passed-34d399)](https://github.com/GHchenjingqi/illustrator-viewer/tree/main/tests/e2e)
 [![Browsers](https://img.shields.io/badge/Chromium%20%7C%20Firefox%20%7C%20WebKit-tested-5eead4)](https://github.com/GHchenjingqi/illustrator-viewer/tree/main/tests/e2e)
 [![Local only](https://img.shields.io/badge/privacy-local--only-5eead4)](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/README.md#12-设计约束)
@@ -90,7 +90,7 @@ npm install illustrator-viewer vue
 - 构建环境：Node.js `>= 22.12`（Vite 8 要求）
 - Vue `^3.5` 作为 peer dependency 由宿主应用提供
 
-> 包尚未发布时，可在本仓库执行 `npm pack`，然后在业务项目中 `npm install ../illustrator-viewer-0.8.0.tgz` 本地验证。
+> 包尚未发布时，可在本仓库执行 `npm pack`，然后在业务项目中 `npm install ../illustrator-viewer-0.9.0.tgz` 本地验证。
 
 ---
 
@@ -209,6 +209,53 @@ const engine = new AIParserEngine({ wasmBytes: bytes })
 
 WASM 仅用于多模式标记扫描和批量几何计算；不改变解析结果，也不作为运行前提。
 
+### 3.6 React / 无框架用法
+
+React 等项目使用无 Vue 的 `core` 入口：
+
+```tsx
+import { useEffect, useRef } from 'react'
+import { AIWorkerClient, CanvasRenderer } from 'illustrator-viewer/core'
+import wasmUrl from 'illustrator-viewer/wasm/ai_viewer_wasm.wasm?url'
+
+export function AiPreview({ file }: { file: File | null }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    if (!file || !canvasRef.current) return
+
+    let disposed = false
+    let client: AIWorkerClient | null = null
+    let renderer: CanvasRenderer | null = null
+
+    const load = async () => {
+      client = new AIWorkerClient({ wasmUrl })
+      const result = await client.parse(file)
+
+      if (disposed || !result.ok || !result.report.scene) return
+      if (!canvasRef.current) return
+
+      renderer = new CanvasRenderer(canvasRef.current, { background: '#ffffff' })
+      renderer.setDocument(result.report.scene)
+    }
+
+    load().catch(console.error)
+
+    return () => {
+      disposed = true
+      renderer?.destroy()
+      client?.terminate()
+    }
+  }, [file])
+
+  return <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: 600 }} />
+}
+```
+
+`illustrator-viewer/core` 不依赖 Vue，只包含解析、Worker、Scene Graph、Canvas 和工具函数。
+
+更多示例见 [`docs/REACT.md`](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/docs/REACT.md)。
+
 ---
 
 ## 4. API
@@ -287,7 +334,8 @@ new AIParserEngine({
 | 导出 | 用途 |
 |---|---|
 | `AIParserEngine` | 完整解析入口 |
-| `AiViewer` | Vue 3 预览组件 |
+| `AiViewer` | Vue 3 预览组件（完整入口） |
+| `illustrator-viewer/core` | 无 Vue 的解析 / 渲染入口，供 React 等使用 |
 | `AIWorkerClient` | Worker 解析客户端 |
 | `CanvasRenderer` | Scene Graph 渲染器 |
 | `buildScene` / `cmykToRgb` | 场景构建与颜色转换 |
@@ -315,14 +363,17 @@ npm run build
 
 ```text
 dist/
-├── illustrator-viewer.js          # ESM 入口（含内联 Worker）
-├── style.css                    # AiViewer / ScenePreview 样式
-└── wasm/ai_viewer_wasm.wasm     # 可选 WASM 加速模块
+├── illustrator-viewer.js          # Vue / 完整入口（含内联 Worker）
+├── illustrator-viewer-core.js     # 无 Vue 的 core 入口，供 React 等使用
+├── AIWorkerClient-*.js            # 两个入口共享的解析 / Worker 代码
+├── style.css                      # AiViewer / ScenePreview 样式
+└── wasm/ai_viewer_wasm.wasm       # 可选 WASM 加速模块
 ```
 
 构建脚本会校验：
 
-- 入口、样式、WASM 产物存在且非空
+- 入口、core 入口、样式、WASM 产物存在且非空
+- `core` 入口不包含 Vue 依赖
 - 没有残留未打包的 `fzstd` 裸模块说明符
 - 没有把演示用 `public/samples` 打进包
 - `package.json` 的 `private`、`exports`、`files` 配置正确
@@ -333,7 +384,7 @@ dist/
 npm pack --dry-run
 ```
 
-当前发布内容约 6 个文件、98 KB（压缩后），只包含 `dist/`、`README.md`、`LICENSE` 和 `package.json`。
+当前发布内容约 8 个文件、100 KB（压缩后），只包含 `dist/`、`README.md`、`LICENSE` 和 `package.json`。
 
 ### 5.3 发布
 
@@ -347,9 +398,9 @@ npm publish
 包配置要点：
 
 - `"type": "module"`，只提供 ESM
-- `vue` 为 peer dependency
+- `vue` 是完整入口的 peer dependency；`illustrator-viewer/core` 不需要 Vue
 - `fzstd` 已打进产物，不需要宿主安装
-- `exports` 提供 `illustrator-viewer/style.css` 与 `illustrator-viewer/wasm/ai_viewer_wasm.wasm`
+- `exports` 提供 `illustrator-viewer/core`、`illustrator-viewer/style.css` 与 `illustrator-viewer/wasm/ai_viewer_wasm.wasm`
 - `files` 白名单只发布构建产物与文档
 
 ### 5.4 演示站构建
@@ -378,7 +429,7 @@ npm run dev                # 开发服务器（默认 5173）
 | `npm run build:demo` | 构建演示站到 `dist-demo/` |
 | `npm run build:wasm` | 重新构建 Rust/WASM 并复制到 `public/wasm` |
 | `npm run benchmark:wasm` | WASM vs JS 基准 |
-| `npm test` | Vitest：18 个文件 / 111 项 |
+| `npm test` | Vitest：19 个文件 / 112 项 |
 | `npm run test:watch` | Vitest watch |
 | `npm run test:e2e` | Playwright：Chromium / Firefox / WebKit 21 项 |
 | `npm run test:e2e:update` | 更新截图基线 |
@@ -659,6 +710,7 @@ File / Blob / ArrayBuffer
 更多文档：
 
 - [`docs/AI-FORMAT.md`](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/docs/AI-FORMAT.md)
+- [`docs/REACT.md`](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/docs/REACT.md)
 - [`docs/PARSER-ARCHITECTURE.md`](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/docs/PARSER-ARCHITECTURE.md)
 - [`docs/RENDERER-ARCHITECTURE.md`](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/docs/RENDERER-ARCHITECTURE.md)
 - [`docs/COMPATIBILITY.md`](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/docs/COMPATIBILITY.md)
