@@ -1,6 +1,6 @@
 # ai_viewer_wasm
 
-AI Viewer Engine 的自研 WebAssembly 加速模块（Rust）。
+Illustrator Viewer 的自研 WebAssembly 加速模块（Rust）。
 
 ## 构建
 

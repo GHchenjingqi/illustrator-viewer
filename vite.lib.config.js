@@ -32,7 +32,7 @@ export default defineConfig({
     lib: {
       entry: resolve(root, 'src/index.js'),
       formats: ['es'],
-      fileName: () => 'ai-viewer-engine.js',
+      fileName: () => 'illustrator-viewer.js',
       cssFileName: 'style',
     },
     rollupOptions: {

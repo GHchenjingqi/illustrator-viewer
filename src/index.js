@@ -1,5 +1,5 @@
 /**
- * AI Viewer Engine 公共导出。
+ * Illustrator Viewer 公共导出。
  * 阶段 1 仅暴露结构检测相关能力；后续阶段在此追加解析/渲染接口。
  */
 

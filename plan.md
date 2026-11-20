@@ -1,6 +1,8 @@
 # AI Viewer Engine
 # Vue 3 原生 AI 文件解析与 Canvas 渲染引擎开发需求文档
 
+> 历史计划文档：项目现已更名为 **Illustrator Viewer**，npm 包名为 `illustrator-viewer`。以下内容保留原始规划背景。
+
 **项目版本：** V2.0  
 **项目类型：** 独立前端文件解析引擎  
 **开发语言：** JavaScript + WebAssembly  

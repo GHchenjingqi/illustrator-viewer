@@ -2,7 +2,7 @@
  * 构建可发布的 npm 包。
  *
  * 产物（dist/）：
- *   ai-viewer-engine.js        ESM 入口
+ *   illustrator-viewer.js      ESM 入口
  *   style.css                  组件样式
  *   wasm/ai_viewer_wasm.wasm   WASM 加速模块（可选）
  *   *.map                      源码映射
@@ -51,14 +51,14 @@ if (build.status !== 0) {
 }
 
 const artifacts = [
-  ['dist/ai-viewer-engine.js', 10_000],
+  ['dist/illustrator-viewer.js', 10_000],
   ['dist/style.css', 100],
   ['dist/wasm/ai_viewer_wasm.wasm', 1_000],
 ]
 const measured = artifacts.map(([file, min]) => [file, requireFile(file, min)])
 
 // Worker 产物必须是自包含的：出现裸模块说明符会导致浏览器加载失败。
-const bundle = readFileSync(resolve(root, 'dist/ai-viewer-engine.js'), 'utf8')
+const bundle = readFileSync(resolve(root, 'dist/illustrator-viewer.js'), 'utf8')
 if (/from\s+["']fzstd["']/.test(bundle)) {
   fail('入口产物仍包含未打包的 fzstd 依赖')
 }

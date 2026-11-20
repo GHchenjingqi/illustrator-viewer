@@ -1,7 +1,7 @@
-# AI Viewer Engine
+# Illustrator Viewer
 
-[![npm version](https://img.shields.io/npm/v/ai-viewer-engine?color=5eead4&label=npm)](https://www.npmjs.com/package/ai-viewer-engine)
-[![npm downloads](https://img.shields.io/npm/dm/ai-viewer-engine?color=8b93ff&label=downloads)](https://www.npmjs.com/package/ai-viewer-engine)
+[![npm version](https://img.shields.io/npm/v/illustrator-viewer?color=5eead4&label=npm)](https://www.npmjs.com/package/illustrator-viewer)
+[![npm downloads](https://img.shields.io/npm/dm/illustrator-viewer?color=8b93ff&label=downloads)](https://www.npmjs.com/package/illustrator-viewer)
 [![License: MIT](https://img.shields.io/badge/license-MIT-34d399)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.12-339933?logo=node.js&logoColor=white)](package.json)
 [![Vue 3](https://img.shields.io/badge/vue-3-42b883?logo=vue.js&logoColor=white)](https://vuejs.org/)
@@ -15,7 +15,7 @@
 > 浏览器本地运行的 Adobe Illustrator `.ai` 文件解析、Scene Graph 与 Canvas 预览引擎。
 > 自主实现 JavaScript 解析链路 + Rust/WASM 加速，不使用 PDF.js、Photopea、Ghostscript 等第三方预览/转换引擎。
 
-**English:** A browser-local Adobe Illustrator (`.ai`, `.eps`, `.ps`) parser, Scene Graph builder, and Canvas preview engine for Vue 3 — with a pure JavaScript pipeline and optional Rust/WASM acceleration. No file uploads, no PDF.js, no third-party AI preview SDK.
+**English:** Illustrator Viewer is a browser-local Adobe Illustrator (`.ai`, `.eps`, `.ps`) parser, Scene Graph builder, and Canvas preview engine for Vue 3 — with a pure JavaScript pipeline and optional Rust/WASM acceleration. No file uploads, no PDF.js, no third-party AI preview SDK.
 
 **当前状态：阶段 1–7 已完成，可作为 npm 包发布。** 真实 AI24 样本（Illustrator 29.3）已能在 Worker 中解析并在 Canvas 中预览；841 个原始路径经 PDF `/ArtBox` 过滤后显示 259 个可见图形。
 
@@ -27,7 +27,7 @@
 
 **关键词 / Topics：**
 
-`adobe-illustrator` · `illustrator` · `ai-file` · `.ai` · `postscript` · `vector-graphics` · `canvas` · `canvas-renderer` · `vue3` · `vite` · `wasm` · `parser` · `preview` · `scene-graph` · `zstandard` · `file-viewer`
+`adobe-illustrator` · `illustrator` · `illustrator-viewer` · `ai-file` · `.ai` · `postscript` · `vector-graphics` · `canvas` · `canvas-renderer` · `vue3` · `vite` · `wasm` · `parser` · `preview` · `scene-graph` · `zstandard` · `file-viewer`
 
 > GitHub 仓库可在 **About → Topics** 中填入以上关键词；npm 搜索则使用 `package.json` 的 `keywords` 字段。当前 `keywords` 已包含 Illustrator、PostScript、Canvas、Vue、WASM、parser、preview 等词。
 
@@ -74,7 +74,7 @@
 ## 2. 安装
 
 ```bash
-npm install ai-viewer-engine vue
+npm install illustrator-viewer vue
 ```
 
 要求：
@@ -83,7 +83,7 @@ npm install ai-viewer-engine vue
 - 构建环境：Node.js `>= 22.12`（Vite 8 要求）
 - Vue `^3.5` 作为 peer dependency 由宿主应用提供
 
-> 包尚未发布时，可在本仓库执行 `npm pack`，然后在业务项目中 `npm install ../ai-viewer-engine-0.7.0.tgz` 本地验证。
+> 包尚未发布时，可在本仓库执行 `npm pack`，然后在业务项目中 `npm install ../illustrator-viewer-0.7.0.tgz` 本地验证。
 
 ---
 
@@ -94,8 +94,8 @@ npm install ai-viewer-engine vue
 ```vue
 <script setup>
 import { ref } from 'vue'
-import { AiViewer } from 'ai-viewer-engine'
-import 'ai-viewer-engine/style.css'
+import { AiViewer } from 'illustrator-viewer'
+import 'illustrator-viewer/style.css'
 
 const file = ref(null)
 
@@ -115,7 +115,7 @@ function onChange(event) {
 ### 3.2 解析引擎
 
 ```js
-import { AIParserEngine } from 'ai-viewer-engine'
+import { AIParserEngine } from 'illustrator-viewer'
 
 const engine = new AIParserEngine({ hash: true })
 const result = await engine.parse(file, {
@@ -139,7 +139,7 @@ if (!result.ok) {
 
 ```js
 import { createApp, h } from 'vue'
-import { CanvasRenderer } from 'ai-viewer-engine'
+import { CanvasRenderer } from 'illustrator-viewer'
 
 const renderer = new CanvasRenderer(canvas, { background: '#ffffff' })
 renderer.setDocument(result.report.scene)
@@ -157,7 +157,7 @@ renderer.setArtboard(0)
 ### 3.4 Worker 客户端
 
 ```js
-import { AIWorkerClient } from 'ai-viewer-engine'
+import { AIWorkerClient } from 'illustrator-viewer'
 
 const client = new AIWorkerClient()
 const result = await client.parse(file, {
@@ -175,7 +175,7 @@ client.terminate()
 **Vite 项目：**
 
 ```js
-import wasmUrl from 'ai-viewer-engine/wasm/ai_viewer_wasm.wasm?url'
+import wasmUrl from 'illustrator-viewer/wasm/ai_viewer_wasm.wasm?url'
 ```
 
 ```vue
@@ -184,7 +184,7 @@ import wasmUrl from 'ai-viewer-engine/wasm/ai_viewer_wasm.wasm?url'
 
 **其他方式：**
 
-- 将 `node_modules/ai-viewer-engine/dist/wasm/ai_viewer_wasm.wasm` 复制到站点 `/wasm/` 目录（组件默认路径）
+- 将 `node_modules/illustrator-viewer/dist/wasm/ai_viewer_wasm.wasm` 复制到站点 `/wasm/` 目录（组件默认路径）
 - 或直接传字节：
 
 ```js
@@ -299,7 +299,7 @@ npm run build
 
 ```text
 dist/
-├── ai-viewer-engine.js          # ESM 入口（含内联 Worker）
+├── illustrator-viewer.js          # ESM 入口（含内联 Worker）
 ├── style.css                    # AiViewer / ScenePreview 样式
 └── wasm/ai_viewer_wasm.wasm     # 可选 WASM 加速模块
 ```
@@ -333,7 +333,7 @@ npm publish
 - `"type": "module"`，只提供 ESM
 - `vue` 为 peer dependency
 - `fzstd` 已打进产物，不需要宿主安装
-- `exports` 提供 `ai-viewer-engine/style.css` 与 `ai-viewer-engine/wasm/ai_viewer_wasm.wasm`
+- `exports` 提供 `illustrator-viewer/style.css` 与 `illustrator-viewer/wasm/ai_viewer_wasm.wasm`
 - `files` 白名单只发布构建产物与文档
 
 ### 5.4 演示站构建

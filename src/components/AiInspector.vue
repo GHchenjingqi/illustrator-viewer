@@ -362,7 +362,7 @@ onBeforeUnmount(() => {
         <div class="logo" aria-hidden="true">◈</div>
         <div>
           <div class="brand-title">
-            AI Viewer Engine
+            Illustrator Viewer
             <span class="stage-badge">STAGE 7 / 7</span>
           </div>
           <div class="brand-sub">Illustrator .ai 解析 · Scene Graph · Canvas 预览 · WASM</div>
@@ -1035,7 +1035,7 @@ onBeforeUnmount(() => {
     </main>
 
     <footer class="footer">
-      <span>AI Viewer Engine v0.7.0 · Stage 7 · JS 解析 + Canvas + WASM + Worker</span>
+      <span>Illustrator Viewer v0.7.0 · Stage 7 · JS 解析 + Canvas + WASM + Worker</span>
       <span class="footer-sep">·</span>
       <span>WASM 仅作为后续加速项，不是运行前提</span>
     </footer>
