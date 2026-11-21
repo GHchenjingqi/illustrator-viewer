@@ -3,6 +3,7 @@
 [![npm version](https://img.shields.io/npm/v/illustrator-viewer?color=5eead4&label=npm)](https://www.npmjs.com/package/illustrator-viewer)
 [![npm downloads](https://img.shields.io/npm/dm/illustrator-viewer?color=8b93ff&label=downloads)](https://www.npmjs.com/package/illustrator-viewer)
 [![GitHub](https://img.shields.io/badge/GitHub-GHchenjingqi%2Fillustrator--viewer-181717?logo=github&logoColor=white)](https://github.com/GHchenjingqi/illustrator-viewer)
+[![Author](https://img.shields.io/badge/author-chenjingqi-8b93ff?logo=github&logoColor=white)](https://github.com/GHchenjingqi)
 [![GitHub issues](https://img.shields.io/github/issues/GHchenjingqi/illustrator-viewer?color=fb7185&logo=github)](https://github.com/GHchenjingqi/illustrator-viewer/issues)
 [![License: MIT](https://img.shields.io/badge/license-MIT-34d399)](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22.12-339933?logo=node.js&logoColor=white)](https://github.com/GHchenjingqi/illustrator-viewer/blob/main/package.json)
@@ -90,7 +91,7 @@ npm install illustrator-viewer vue
 - 构建环境：Node.js `>= 22.12`（Vite 8 要求）
 - Vue `^3.5` 作为 peer dependency 由宿主应用提供
 
-> 包尚未发布时，可在本仓库执行 `npm pack`，然后在业务项目中 `npm install ../illustrator-viewer-0.9.0.tgz` 本地验证。
+> 包尚未发布时，可在本仓库执行 `npm pack`，然后在业务项目中 `npm install ../illustrator-viewer-0.9.1.tgz` 本地验证。
 
 ---
 
@@ -721,6 +722,7 @@ File / Blob / ArrayBuffer
 ## 14. 项目链接
 
 - **GitHub 仓库：** <https://github.com/GHchenjingqi/illustrator-viewer>
+- **作者 / 维护者：** chenjingqi · <https://github.com/GHchenjingqi>
 - **npm 包：** <https://www.npmjs.com/package/illustrator-viewer>
 - **问题反馈 / Issues：** <https://github.com/GHchenjingqi/illustrator-viewer/issues>
 - **Releases：** <https://github.com/GHchenjingqi/illustrator-viewer/releases>
